@@ -22,19 +22,19 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-2.5 group">
           <img
             src={logoImg}
-            alt="SVG Converter & Vectorizer"
+            alt="AnyFormat"
             className="h-9 w-auto object-contain transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 group-hover:drop-shadow-[0_0_12px_rgba(244,63,94,0.6)]"
             decoding="async"
           />
           <span className="hidden lg:inline text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">
-            SVG Converter &amp; Vectorizer
+            AnyFormat
           </span>
           <a
-            href="https://github.com/l0ee/svg-converter-and-universal-converter"
+            href="https://github.com/l0ee/anyformat"
             target="_blank"
             rel="noreferrer"
             className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-600 dark:text-pink-300 border border-pink-500/30 uppercase tracking-wider transition-all duration-300 group-hover:border-pink-400 group-hover:shadow-pink-500/20 shadow-sm"
-            aria-label="View SVG Converter & Vectorizer on GitHub"
+            aria-label="View AnyFormat on GitHub"
           >
             Open Source
           </a>

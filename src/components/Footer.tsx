@@ -12,17 +12,17 @@ export const Footer: React.FC = () => {
             <div className="flex items-center space-x-2 group">
               <img
                 src={logoImg}
-                alt="SVG Converter & Vectorizer"
+                alt="AnyFormat"
                 className="h-8 w-auto object-contain transition-all duration-300 group-hover:scale-110 group-hover:-rotate-3 group-hover:drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]"
                 loading="lazy"
                 decoding="async"
               />
               <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                SVG Converter &amp; Vectorizer
+                AnyFormat
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Browser-based raster-to-SVG tracing with monochrome and layered-color output. Processing uses browser file, image, canvas, and worker APIs.
+              AnyFormat is a browser-based file converter and SVG vectorizer. Processing uses browser file, image, canvas, and worker APIs.
             </p>
             <a href="https://github.com/l0ee" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-xs font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">GitHub profile: @l0ee</a>
           </section>
@@ -51,8 +51,8 @@ export const Footer: React.FC = () => {
             <h2 id="footer-repository" className="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-200 mb-3">Git Repo</h2>
             <p className="mb-3 text-xs leading-relaxed">View the source, report a problem, or contribute through GitHub.</p>
             <ul className="space-y-2 text-xs">
-              <li><a href="https://github.com/l0ee/svg-converter-and-universal-converter" target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">Source repository</a></li>
-              <li><a href="https://github.com/l0ee/svg-converter-and-universal-converter/issues" target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">Issues and requests</a></li>
+              <li><a href="https://github.com/l0ee/anyformat" target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">Source repository</a></li>
+              <li><a href="https://github.com/l0ee/anyformat/issues" target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">Issues and requests</a></li>
             </ul>
           </section>
         </div>
@@ -62,7 +62,7 @@ export const Footer: React.FC = () => {
           <p>
             MIT licensed.{' '}
             <a
-              href="https://github.com/l0ee/svg-converter-and-universal-converter"
+              href="https://github.com/l0ee/anyformat"
               target="_blank"
               rel="noreferrer"
               className="font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200"

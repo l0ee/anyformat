@@ -6,7 +6,7 @@ import { exportBatchZip } from './zipExporter';
 import { rasterizeSvgToBlob } from './svgRasterizer';
 
 export async function runEngineTests(): Promise<boolean> {
-  console.log('Testing SVG Converter Engine...');
+  console.log('Testing AnyFormat conversion engine...');
 
   // Create test dummy ImageData (2x2 pixels)
   const width = 2;
@@ -52,6 +52,6 @@ export async function runEngineTests(): Promise<boolean> {
     }
   }
 
-  console.log('All SVG Converter Engine tests passed!');
+  console.log('All AnyFormat conversion engine tests passed!');
   return true;
 }

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to SVG Converter & Vectorizer.
+Thanks for contributing to AnyFormat.
 
 ## Development flow
 
