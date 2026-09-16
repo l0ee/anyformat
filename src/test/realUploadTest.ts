@@ -1,15 +1,19 @@
 // Node.js DOM polyfill for ImageData
 if (typeof globalThis.ImageData === 'undefined') {
-  (globalThis as any).ImageData = class ImageData {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    constructor(data: Uint8ClampedArray, width: number, height: number) {
-      this.data = data;
-      this.width = width;
-      this.height = height;
-    }
-  };
+  Object.defineProperty(globalThis, 'ImageData', {
+    value: class ImageData {
+      data: Uint8ClampedArray;
+      width: number;
+      height: number;
+      constructor(data: Uint8ClampedArray, width: number, height: number) {
+        this.data = data;
+        this.width = width;
+        this.height = height;
+      }
+    },
+    configurable: true,
+    writable: true,
+  });
 }
 
 import { traceMonochrome } from '../engine/monochromeTracer';

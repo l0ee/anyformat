@@ -80,6 +80,15 @@ describe('production server', () => {
     expect(await response.text()).toBe('2345');
   });
 
+  it('supports suffix byte ranges for media', async () => {
+    const response = await fetch(`${origin}/background.mp4`, {
+      headers: { Range: 'bytes=-3' },
+    });
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-range')).toBe('bytes 7-9/10');
+    expect(await response.text()).toBe('789');
+  });
+
   it('rejects traversal and unsupported methods', async () => {
     const traversal = await fetch(`${origin}/..%2Foutside.txt`);
     const post = await fetch(`${origin}/`, { method: 'POST' });

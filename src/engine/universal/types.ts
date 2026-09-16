@@ -61,6 +61,12 @@ export function isSupportedSourceExtension(extension: string): boolean {
   return Boolean(SUPPORTED_FORMATS[extension.toLowerCase()]);
 }
 
+export function isSupportedConversion(sourceExtension: string, targetExtension: string): boolean {
+  return Boolean(
+    SUPPORTED_FORMATS[sourceExtension.toLowerCase()]?.canExportTo.includes(targetExtension.toLowerCase()),
+  );
+}
+
 export function getCommonExportTargets(sourceExtensions: string[]): string[] {
   if (sourceExtensions.length === 0) return [];
 

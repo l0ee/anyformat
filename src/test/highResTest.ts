@@ -1,15 +1,19 @@
 // Node environment polyfill for ImageData if missing
 if (typeof ImageData === 'undefined') {
-  (globalThis as any).ImageData = class ImageData {
-    width: number;
-    height: number;
-    data: Uint8ClampedArray;
-    constructor(data: Uint8ClampedArray, width: number, height: number) {
-      this.width = width;
-      this.height = height;
-      this.data = data;
-    }
-  };
+  Object.defineProperty(globalThis, 'ImageData', {
+    value: class ImageData {
+      width: number;
+      height: number;
+      data: Uint8ClampedArray;
+      constructor(data: Uint8ClampedArray, width: number, height: number) {
+        this.width = width;
+        this.height = height;
+        this.data = data;
+      }
+    },
+    configurable: true,
+    writable: true,
+  });
 }
 
 import { traceColorFromImageData } from '../engine/colorTracer';
