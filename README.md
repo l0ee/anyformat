@@ -88,9 +88,9 @@ Repository: [github.com/l0ee/svg-converter-and-universal-converter](https://gith
 
 ## Deployment
 
-The repository includes a GitHub Pages workflow for a managed static deployment. Before the first deployment, a repository administrator must open **Settings → Pages** and set **Source** to **GitHub Actions**. Merging to `main` then builds with the repository subpath and deploys the generated `dist` artifact.
+The production site is deployed through GitHub Pages at [l0ee.github.io/svg-converter-and-universal-converter](https://l0ee.github.io/svg-converter-and-universal-converter/). The repository uses GitHub Actions as its Pages source; merging to `main` builds with the repository subpath and deploys the generated `dist` artifact.
 
-Canonical, Open Graph, and sitemap URLs are intentionally omitted until the first deployment has completed and its public origin has been verified. Add them only after that URL is confirmed.
+Canonical, Open Graph, robots, and sitemap metadata use that verified Pages origin.
 
 The included Node server remains useful for local or self-hosted operation and provides compression, range requests, cache controls, MIME handling, and baseline security headers. GitHub Pages is the recommended public host for this static application.
 
