@@ -94,8 +94,13 @@ function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHeaders =
       res.end();
       return;
     }
-    const start = match[1] ? Number(match[1]) : 0;
-    const end = match[2] ? Number(match[2]) : buffer.length - 1;
+    const requestedStart = match[1] ? Number(match[1]) : null;
+    const requestedEnd = match[2] ? Number(match[2]) : null;
+    const isSuffixRange = requestedStart === null;
+    const start = isSuffixRange
+      ? Math.max(0, buffer.length - (requestedEnd ?? 0))
+      : requestedStart;
+    const end = isSuffixRange || requestedEnd === null ? buffer.length - 1 : requestedEnd;
     if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= buffer.length) {
       res.writeHead(416, { ...headers, 'Content-Range': `bytes */${buffer.length}` });
       res.end();

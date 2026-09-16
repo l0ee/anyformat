@@ -55,6 +55,14 @@ npm ci
 npm run dev
 ```
 
+Install Playwright browsers once before running end-to-end tests:
+
+```bash
+npx playwright install chromium firefox webkit
+```
+
+On Debian or Ubuntu, use `npx playwright install --with-deps chromium firefox webkit` if the browser system libraries are missing.
+
 Create a feature branch before making changes:
 
 ```bash
@@ -71,12 +79,13 @@ Run the same checks used by continuous integration:
 
 ```bash
 npm run typecheck
+npm run lint
 npm test
 npm run test:e2e
 npm run build
 ```
 
-The end-to-end suite exercises Chromium, Firefox, and WebKit projects. It checks responsive layout, the batch workflow order, accessible upload rejection, and real PNG, JPEG, WebP, BMP, and SVG conversion paths.
+The end-to-end suite exercises Chromium, Firefox, and WebKit projects. It checks responsive layout, batch uploader ordering, accessible upload rejection, and real PNG, JPEG, WebP, BMP, and SVG format-conversion paths. The unit suite covers the optimizer, format-support matrix, and production server; conversion-engine edge cases should be covered before adding new advertised formats.
 
 After building, serve the `dist` directory on `http://localhost:8080`:
 
@@ -88,9 +97,9 @@ Repository: [github.com/l0ee/svg-converter-and-universal-converter](https://gith
 
 ## Deployment
 
-The production site is deployed through GitHub Pages at [l0ee.github.io/svg-converter-and-universal-converter](https://l0ee.github.io/svg-converter-and-universal-converter/). The repository uses GitHub Actions as its Pages source; merging to `main` builds with the repository subpath and deploys the generated `dist` artifact.
+The production site is deployed through GitHub Pages at [l0ee.github.io/svg-converter-and-universal-converter](https://l0ee.github.io/svg-converter-and-universal-converter/). The repository uses GitHub Actions as its Pages source; a successful validation job on `main` is required before the generated `dist` artifact is deployed.
 
-Canonical, Open Graph, robots, and sitemap metadata use that verified Pages origin.
+Canonical, Open Graph, robots, and sitemap metadata use the configured Pages origin. For self-hosted builds, set `VITE_SITE_URL` to the public site URL.
 
 The included Node server remains useful for local or self-hosted operation and provides compression, range requests, cache controls, MIME handling, and baseline security headers. GitHub Pages is the recommended public host for this static application.
 
