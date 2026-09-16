@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --app-surface: rgb(255 255 255 / 0.88);
+    --app-border: rgb(148 163 184 / 0.35);
+    --app-shadow: 0 24px 64px -32px rgb(15 23 42 / 0.34);
+    --app-focus: #0f766e;
+  }
+
+  :root.dark {
+    color-scheme: dark;
+    --app-surface: rgb(15 23 42 / 0.88);
+    --app-border: rgb(100 116 139 / 0.42);
+    --app-shadow: 0 28px 80px -36px rgb(2 6 23 / 0.92);
+    --app-focus: #5eead4;
+  }
+
+  html {
+    min-width: 320px;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+    background: #f8fafc;
+    font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+
+  .dark body {
+    background: #020617;
+  }
+
+  ::selection {
+    color: #f8fafc;
+    background: #6d28d9;
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid var(--app-focus);
+    outline-offset: 3px;
+  }
+
+  button,
+  select,
+  input[type='checkbox'],
+  input[type='range'] {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  .app-shell {
+    background-image:
+      radial-gradient(circle at 12% 2%, rgb(45 212 191 / 0.16), transparent 30rem),
+      radial-gradient(circle at 88% 4%, rgb(124 58 237 / 0.16), transparent 34rem),
+      linear-gradient(to bottom, #f8fafc, #eff6ff 48%, #f5f3ff);
+  }
+
+  .dark .app-shell {
+    background-image:
+      radial-gradient(circle at 12% 2%, rgb(20 184 166 / 0.15), transparent 32rem),
+      radial-gradient(circle at 88% 4%, rgb(109 40 217 / 0.2), transparent 38rem),
+      linear-gradient(to bottom, #020617, #0f172a 52%, #111827);
+  }
+
+  .app-panel {
+    border: 1px solid var(--app-border);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow);
+    backdrop-filter: blur(18px);
+  }
+
+  .skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 100;
+    transform: translateY(-180%);
+    border-radius: 0.75rem;
+    background: #0f172a;
+    padding: 0.75rem 1rem;
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 700;
+    box-shadow: 0 12px 30px rgb(15 23 42 / 0.3);
+    transition: transform 160ms ease;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
+  .app-toast {
+    animation: toast-enter 180ms ease-out both;
+  }
+}
+
+@layer utilities {
+  .app-main > :first-child h1 {
+    max-width: 19ch;
+    margin-inline: auto;
+    font-size: clamp(2rem, 6.5vw, 4rem);
+    line-height: 1.04;
+    text-wrap: balance;
+  }
+
+  .app-main > :not(:first-child) {
+    position: relative;
+    z-index: 2;
+  }
+
+  #main-content:focus-visible {
+    outline: none;
+  }
+
+  .app-shell > header > div {
+    gap: 0.75rem;
+  }
+
+  .app-shell > header > div > div:last-child {
+    min-width: 0;
+  }
+
+  .app-shell > header > div > div:last-child > .mode-switcher {
+    scrollbar-width: none;
+  }
+
+  .app-shell > header > div > div:last-child > .mode-switcher::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-shell > header button {
+    min-height: 2.5rem;
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell > header {
+    top: 0.5rem;
+    padding-inline: 0.5rem;
+  }
+
+  .app-shell > header > div {
+    flex-wrap: wrap;
+    border-radius: 1.25rem;
+    padding: 0.625rem;
+  }
+
+  .app-shell > header > div > div:last-child {
+    display: flex;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .app-shell > header > div > div:last-child > .mode-switcher {
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .app-shell > header > div > div:last-child > .mode-switcher > button {
+    flex: 0 0 auto;
+    padding-inline: 0.875rem;
+    white-space: nowrap;
+  }
+
+  .app-shell > header > div > div:last-child > button {
+    flex: 0 0 2.5rem;
+  }
+
+  .app-main > :first-child > div {
+    margin-block: 1rem;
+  }
+
+}
+
+@media (max-width: 420px) {
+  .app-shell > header > div > div:first-child > span:last-child {
+    display: none;
+  }
+
+  .app-main > :first-child h1 {
+    font-size: clamp(1.85rem, 9vw, 2.4rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .app-shell video[autoplay] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  :root.dark {
+    --app-surface: rgb(255 255 255 / 0.98);
+  }
+
+  :root.dark {
+    --app-surface: rgb(15 23 42 / 0.98);
+  }
+
+  .app-shell video[autoplay] {
+    display: none;
+  }
+}
