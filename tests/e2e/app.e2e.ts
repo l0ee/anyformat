@@ -86,21 +86,35 @@ test('rejects unsupported universal uploads accessibly', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('1 unsupported file rejected: private.txt');
 });
 
-test('converts real PNG, JPEG, WebP, BMP, and SVG fixtures', async ({ page }) => {
+test('converts every advertised PNG, JPEG, WebP, BMP, and SVG path', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Format Converter' }).click();
-  await page.locator('input[type="file"]').setInputFiles(await canvasFiles(page));
+  const fixtures = await canvasFiles(page);
+  const fixtureByExtension = Object.fromEntries(
+    fixtures.map((fixture) => [fixture.name.split('.').pop()!, fixture])
+  );
+  const paths = [
+    ['png', 'jpg'], ['png', 'webp'], ['png', 'svg'],
+    ['jpg', 'png'], ['jpg', 'webp'], ['jpg', 'svg'],
+    ['webp', 'png'], ['webp', 'jpg'], ['webp', 'svg'],
+    ['bmp', 'png'], ['bmp', 'jpg'], ['bmp', 'webp'], ['bmp', 'svg'],
+    ['svg', 'png'], ['svg', 'jpg'], ['svg', 'webp'],
+  ] as const;
+  const matrixFiles = paths.map(([source, target]) => ({
+    ...fixtureByExtension[source],
+    name: `${source}-to-${target}.${source}`,
+  }));
 
-  await expect(page.getByRole('heading', { name: 'Format conversion queue (5)' })).toBeVisible();
+  await page.locator('input[type="file"]').setInputFiles(matrixFiles);
+
+  await expect(page.getByRole('heading', { name: `Format conversion queue (${paths.length})` })).toBeVisible();
   await expect(page.getByLabel('Convert all to')).toBeDisabled();
 
-  await page.getByLabel('Output for sample.png').selectOption('webp');
-  await page.getByLabel('Output for sample.jpg').selectOption('svg');
-  await page.getByLabel('Output for sample.webp').selectOption('jpg');
-  await page.getByLabel('Output for sample.bmp').selectOption('png');
-  await page.getByLabel('Output for sample.svg').selectOption('jpg');
+  for (const [source, target] of paths) {
+    await page.getByLabel(`Output for ${source}-to-${target}.${source}`).selectOption(target);
+  }
   await page.getByRole('button', { name: 'Convert all files' }).click();
 
-  await expect(page.getByText('5 completed of 5')).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole('button', { name: /^Download / })).toHaveCount(5);
+  await expect(page.getByText(`${paths.length} completed of ${paths.length}`)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: /^Download / })).toHaveCount(paths.length);
 });
