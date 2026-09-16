@@ -211,6 +211,8 @@ export const App: React.FC = () => {
     }, 350);
 
     return () => clearTimeout(timer);
+  // Optimization settings are intentionally excluded; the next effect updates only the SVG output.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFile, tracingMode, monoOpts, colorOpts]);
 
   // Re-run optimization when cleanup settings change

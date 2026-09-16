@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getCommonExportTargets,
   getFileExtension,
+  isSupportedConversion,
   isSupportedSourceExtension,
   SUPPORTED_FORMATS,
 } from './types';
@@ -24,6 +25,13 @@ describe('universal format support', () => {
     expect(getCommonExportTargets(['png', 'svg'])).toEqual(['jpg', 'webp']);
     expect(getCommonExportTargets(['png', 'webp'])).toEqual(['jpg', 'svg']);
     expect(getCommonExportTargets(['bmp', 'svg'])).toEqual(['png', 'jpg', 'webp']);
+  });
+
+  it('validates individual conversion targets against the public matrix', () => {
+    expect(isSupportedConversion('PNG', 'jpg')).toBe(true);
+    expect(isSupportedConversion('svg', 'PDF')).toBe(false);
+    expect(isSupportedConversion('bmp', 'bmp')).toBe(false);
+    expect(isSupportedConversion('unknown', 'png')).toBe(false);
   });
 
   it('fails closed for empty or unknown source lists', () => {
