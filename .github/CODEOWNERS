@@ -1,0 +1,4 @@
+# Keep workflow, dependency, and security changes visible to the repository owner.
+/.github/workflows/ @l0ee
+/.github/dependabot.yml @l0ee
+/SECURITY.md @l0ee
