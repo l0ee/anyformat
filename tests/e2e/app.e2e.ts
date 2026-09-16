@@ -49,6 +49,7 @@ test('renders the primary workflows without horizontal overflow', async ({ page 
   await page.goto('/');
 
   await expect(page).toHaveTitle(/SVG Converter & Vectorizer/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://l0ee.github.io/svg-converter-and-universal-converter/');
   await expect(page.getByText('by l0ee')).toHaveCount(1);
   await expect(page.getByText(/© \d{4} l0ee\./)).toBeVisible();
   await expect(page.getByRole('link', { name: /View SVG Converter & Vectorizer on GitHub/ })).toHaveAttribute('href', 'https://github.com/l0ee/svg-converter-and-universal-converter');

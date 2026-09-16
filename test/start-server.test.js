@@ -13,6 +13,7 @@ beforeAll(async () => {
   await fs.mkdir(path.join(directory, 'assets'));
   await fs.writeFile(path.join(directory, 'index.html'), '<!doctype html><title>Test app</title><main>App shell</main>');
   await fs.writeFile(path.join(directory, 'robots.txt'), 'User-agent: *\nAllow: /\n');
+  await fs.writeFile(path.join(directory, 'sitemap.xml'), '<?xml version="1.0"?><urlset></urlset>');
   await fs.writeFile(path.join(directory, 'assets', 'index-AbCd1234.js'), 'const value = "compressible";'.repeat(100));
   await fs.writeFile(path.join(directory, 'background.mp4'), Buffer.from('0123456789'));
 
@@ -35,6 +36,13 @@ describe('production server', () => {
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(response.headers.get('x-frame-options')).toBe('DENY');
     expect(response.headers.get('content-security-policy')).toContain("object-src 'none'");
+  });
+
+  it('serves the sitemap with the correct XML MIME type', async () => {
+    const response = await fetch(`${origin}/sitemap.xml`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/xml; charset=utf-8');
+    expect(await response.text()).toContain('<urlset>');
   });
 
   it('serves the application root for GET and HEAD requests', async () => {
