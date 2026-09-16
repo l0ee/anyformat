@@ -1,8 +1,8 @@
-# SVG Converter & Vectorizer
+# AnyFormat — Universal File Converter
 
-[![CI](https://github.com/l0ee/svg-converter-and-universal-converter/actions/workflows/ci.yml/badge.svg)](https://github.com/l0ee/svg-converter-and-universal-converter/actions/workflows/ci.yml)
+[![CI](https://github.com/l0ee/anyformat/actions/workflows/ci.yml/badge.svg)](https://github.com/l0ee/anyformat/actions/workflows/ci.yml)
 
-SVG Converter & Vectorizer is a browser-based React application for tracing raster images into SVG paths. It supports monochrome and layered-color output, an original/result comparison, palette adjustments, SVG markup cleanup, raster re-export, and batch ZIP downloads. A separate format-conversion workspace handles additional image and SVG conversion paths with browser APIs.
+AnyFormat is a browser-based React application for converting image formats and tracing raster images into SVG paths. It supports monochrome and layered-color output, an original/result comparison, palette adjustments, SVG markup cleanup, raster re-export, and batch ZIP downloads. All conversion paths run locally in the browser.
 
 > Product description: an accessible, browser-based raster-to-SVG vectorizer and image-format converter with single-file and batch workflows. It uses browser APIs locally and does not include a file-upload backend.
 
@@ -49,8 +49,8 @@ Decoder support can vary between browsers. PDF and ICO conversion paths are not 
 Clone and install the project:
 
 ```bash
-git clone https://github.com/l0ee/svg-converter-and-universal-converter.git
-cd svg-converter-and-universal-converter
+git clone https://github.com/l0ee/anyformat.git
+cd anyformat
 npm ci
 npm run dev
 ```
@@ -93,11 +93,11 @@ After building, serve the `dist` directory on `http://localhost:8080`:
 npm start
 ```
 
-Repository: [github.com/l0ee/svg-converter-and-universal-converter](https://github.com/l0ee/svg-converter-and-universal-converter)
+Repository: [github.com/l0ee/anyformat](https://github.com/l0ee/anyformat)
 
 ## Deployment
 
-The production site is deployed through GitHub Pages at [l0ee.github.io/svg-converter-and-universal-converter](https://l0ee.github.io/svg-converter-and-universal-converter/). The repository uses GitHub Actions as its Pages source; a successful validation job on `main` is required before the generated `dist` artifact is deployed.
+The production site is deployed through GitHub Pages at [l0ee.github.io/anyformat](https://l0ee.github.io/anyformat/). The repository uses GitHub Actions as its Pages source; a successful validation job on `main` is required before the generated `dist` artifact is deployed.
 
 Canonical, Open Graph, robots, and sitemap metadata use the configured Pages origin. For self-hosted builds, set `VITE_SITE_URL` to the public site URL.
 

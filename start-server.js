@@ -181,6 +181,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
   const port = Number(process.env.PORT) || 8080;
   const server = createProductionServer();
   server.listen(port, () => {
-    console.log(`SVG Converter & Vectorizer production server running at http://localhost:${port}`);
+    console.log(`AnyFormat production server running at http://localhost:${port}`);
   });
 }
