@@ -20,6 +20,17 @@ export function traceColorFromImageData(
   const width = imageData.width;
   const height = imageData.height;
 
+  if (width === 0 || height === 0) {
+    return {
+      svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0"></svg>`,
+      width: 0,
+      height: 0,
+      pathCount: 0,
+      nodeCount: 0,
+      colors: []
+    };
+  }
+
   const { palette, pixelAssignments } = quantizeKMeans(imageData, numberOfColors);
 
   // 2. Count frequencies & compute percentage
@@ -174,8 +185,9 @@ function quantizeKMeans(
 
   console.log('[DEBUG] quantizeKMeans sampleCount:', sampleCount);
   if (sampleCount === 0) {
+    pixelAssignments.fill(255);
     return {
-      palette: [{ r: 0, g: 0, b: 0, a: 255 }],
+      palette: [{ r: 0, g: 0, b: 0, a: 0 }],
       pixelAssignments
     };
   }

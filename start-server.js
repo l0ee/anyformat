@@ -10,8 +10,11 @@ const __dirname = path.dirname(__filename);
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.cjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
   '.xml': 'application/xml; charset=utf-8',
   '.png': 'image/png',
@@ -19,15 +22,19 @@ const MIME_TYPES = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.ico': 'image/x-icon',
   '.svg': 'image/svg+xml; charset=utf-8',
   '.mp4': 'video/mp4',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
   '.otf': 'font/otf',
+  '.wasm': 'application/wasm',
+  '.webmanifest': 'application/manifest+json',
 };
 
-const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.txt', '.xml', '.svg']);
+const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.cjs', '.css', '.json', '.map', '.txt', '.xml', '.svg']);
 
 function securityHeaders() {
   return {
@@ -39,6 +46,7 @@ function securityHeaders() {
       "img-src 'self' data: blob:",
       "media-src 'self' blob:",
       "worker-src 'self' blob:",
+      "child-src 'self' blob:",
       "connect-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",
@@ -83,6 +91,7 @@ function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHeaders =
     ...securityHeaders(),
     'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
     'Cache-Control': cacheControl(filePath),
+    'Accept-Ranges': 'bytes',
     ...extraHeaders,
   };
 
@@ -157,7 +166,8 @@ export function createProductionServer({ distDir = path.join(__dirname, 'dist') 
         return;
       }
 
-      const isClientRoute = error.code === 'ENOENT' && !path.extname(resolved.pathname);
+      const isNotFound = error.code === 'ENOENT' || error.code === 'EISDIR';
+      const isClientRoute = isNotFound && !path.extname(resolved.pathname);
       if (isClientRoute) {
         const indexPath = path.join(distDir, 'index.html');
         fs.readFile(indexPath, (indexError, indexContent) => {
@@ -171,8 +181,8 @@ export function createProductionServer({ distDir = path.join(__dirname, 'dist') 
         return;
       }
 
-      res.writeHead(error.code === 'ENOENT' ? 404 : 500, securityHeaders());
-      res.end(error.code === 'ENOENT' ? 'Not Found' : 'Server Error');
+      res.writeHead(isNotFound ? 404 : 500, securityHeaders());
+      res.end(isNotFound ? 'Not Found' : 'Server Error');
     });
   });
 }
