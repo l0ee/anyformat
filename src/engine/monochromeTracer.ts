@@ -178,7 +178,7 @@ export async function traceMonochrome(
   // Restore SVG viewBox to match original high-res dimensions
   if (origWidth !== result.width || origHeight !== result.height) {
     const svgWithOrigViewBox = result.svg
-      .replace(`viewBox="0 0 ${result.width} ${result.height}"`, `viewBox="0 0 ${result.width} ${result.height}"`)
+      .replace(`viewBox="0 0 ${result.width} ${result.height}"`, `viewBox="0 0 ${origWidth} ${origHeight}"`)
       .replace(`width="${result.width}" height="${result.height}"`, `width="${origWidth}" height="${origHeight}"`);
 
     return {
