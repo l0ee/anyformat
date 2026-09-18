@@ -15,6 +15,12 @@ function createBmp(): Buffer {
   return buffer;
 }
 
+function createPdf(): Buffer {
+  return Buffer.from(
+    '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 100 100]/Parent 2 0 R>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000052 00000 n\n0000000101 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF'
+  );
+}
+
 async function canvasFiles(page: Page) {
   const encoded = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
@@ -41,6 +47,7 @@ async function canvasFiles(page: Page) {
       mimeType: 'image/svg+xml',
       buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2" fill="#e11d48"/></svg>'),
     },
+    { name: 'sample.pdf', mimeType: 'application/pdf', buffer: createPdf() },
   ];
 }
 
@@ -86,7 +93,7 @@ test('rejects unsupported universal uploads accessibly', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('1 unsupported file rejected: private.txt');
 });
 
-test('converts every advertised PNG, JPEG, WebP, BMP, and SVG path', async ({ page }) => {
+test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Format Converter' }).click();
   const fixtures = await canvasFiles(page);
@@ -94,11 +101,12 @@ test('converts every advertised PNG, JPEG, WebP, BMP, and SVG path', async ({ pa
     fixtures.map((fixture) => [fixture.name.split('.').pop()!, fixture])
   );
   const paths = [
-    ['png', 'jpg'], ['png', 'webp'], ['png', 'svg'],
-    ['jpg', 'png'], ['jpg', 'webp'], ['jpg', 'svg'],
-    ['webp', 'png'], ['webp', 'jpg'], ['webp', 'svg'],
-    ['bmp', 'png'], ['bmp', 'jpg'], ['bmp', 'webp'], ['bmp', 'svg'],
-    ['svg', 'png'], ['svg', 'jpg'], ['svg', 'webp'],
+    ['png', 'jpg'], ['png', 'webp'], ['png', 'svg'], ['png', 'pdf'],
+    ['jpg', 'png'], ['jpg', 'webp'], ['jpg', 'svg'], ['jpg', 'pdf'],
+    ['webp', 'png'], ['webp', 'jpg'], ['webp', 'svg'], ['webp', 'pdf'],
+    ['bmp', 'png'], ['bmp', 'jpg'], ['bmp', 'webp'], ['bmp', 'svg'], ['bmp', 'pdf'],
+    ['svg', 'png'], ['svg', 'jpg'], ['svg', 'webp'], ['svg', 'pdf'],
+    ['pdf', 'png'], ['pdf', 'jpg'], ['pdf', 'webp'], ['pdf', 'svg'],
   ] as const;
   const matrixFiles = paths.map(([source, target]) => ({
     ...fixtureByExtension[source],
