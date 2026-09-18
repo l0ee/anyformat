@@ -447,7 +447,7 @@ export const App: React.FC = () => {
       };
     });
     setUniversalItems((prev) => [...prev, ...newTasks]);
-    showToast(`Added ${newTasks.length} file(s) to Universal Converter`, 'info');
+    showToast(`Added ${newTasks.length} file(s) to AnyFormat`, 'info');
   };
 
   const handleUniversalTargetChange = (id: string, targetExt: string) => {
@@ -483,7 +483,7 @@ export const App: React.FC = () => {
       if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
     });
     setUniversalItems([]);
-    showToast('Universal queue cleared', 'info');
+    showToast('AnyFormat queue cleared', 'info');
   };
 
   const startUniversalConversion = async () => {
@@ -533,7 +533,7 @@ export const App: React.FC = () => {
     showToast(
       failureCount > 0
         ? `Conversion finished with ${failureCount} failed file${failureCount === 1 ? '' : 's'}.`
-        : 'Universal conversion complete!',
+        : 'AnyFormat conversion complete!',
       failureCount > 0 ? 'error' : 'success'
     );
   };
@@ -578,7 +578,7 @@ export const App: React.FC = () => {
     try {
       const zipBlob = await exportBatchZip(exportItems);
       downloadBlob(zipBlob, 'converted_files.zip');
-      showToast('Universal ZIP exported!', 'success');
+      showToast('AnyFormat ZIP exported!', 'success');
     } catch (err) {
       console.error('ZIP export error:', err);
       showToast('Failed to export ZIP file', 'error');

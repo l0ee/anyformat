@@ -140,7 +140,7 @@ export class TraceWorkerClient {
       });
 
       try {
-        this.worker!.postMessage(task);
+        this.worker!.postMessage(task, [task.imageData.data.buffer]);
       } catch (postErr) {
         clearTimeout(timeoutId);
         this.pendingRequests.delete(id);
@@ -228,7 +228,7 @@ export class TraceWorkerClient {
       });
 
       try {
-        this.worker!.postMessage(task);
+        this.worker!.postMessage(task, [task.imageData.data.buffer]);
       } catch (postErr) {
         clearTimeout(timeoutId);
         this.pendingRequests.delete(id);

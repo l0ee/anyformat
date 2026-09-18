@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://l0ee.github.io/svg-converter-and-universal-converter/sitemap.xml
+Sitemap: https://l0ee.github.io/anyformat/sitemap.xml
