@@ -1,5 +1,5 @@
 {
-  "name": "svg-converter",
+  "name": "anyformat",
   "private": true,
   "version": "0.0.0",
   "packageManager": "npm@10.9.7",
@@ -7,13 +7,13 @@
     "node": ">=22 <23",
     "npm": ">=10 <11"
   },
-  "description": "Browser-based raster image tracer and format converter for SVG workflows.",
+  "description": "AnyFormat is a browser-based file converter and SVG vectorizer.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/l0ee/svg-converter-and-universal-converter.git"
+    "url": "git+https://github.com/l0ee/anyformat.git"
   },
   "bugs": {
-    "url": "https://github.com/l0ee/svg-converter-and-universal-converter/issues"
+    "url": "https://github.com/l0ee/anyformat/issues"
   },
   "type": "module",
   "scripts": {
@@ -42,6 +42,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^10.0.0",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",

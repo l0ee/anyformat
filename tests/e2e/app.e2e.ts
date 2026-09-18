@@ -48,11 +48,11 @@ test('renders the primary workflows without horizontal overflow', async ({ page 
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
 
-  await expect(page).toHaveTitle(/SVG Converter & Vectorizer/);
+  await expect(page).toHaveTitle(/AnyFormat — Universal File Converter/);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'http://127.0.0.1:4174/');
   await expect(page.getByText('by l0ee')).toHaveCount(1);
   await expect(page.getByText(/© \d{4} l0ee\./)).toBeVisible();
-  await expect(page.getByRole('link', { name: /View SVG Converter & Vectorizer on GitHub/ })).toHaveAttribute('href', 'https://github.com/l0ee/svg-converter-and-universal-converter');
+  await expect(page.getByRole('link', { name: /View AnyFormat on GitHub/ })).toHaveAttribute('href', 'https://github.com/l0ee/anyformat');
 
   const sizes = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
   expect(sizes.document).toBeLessThanOrEqual(sizes.viewport);
