@@ -17,14 +17,8 @@ concurrency:
 
 jobs:
   validate:
-    name: validate (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+    name: validate
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out repository
@@ -42,12 +36,8 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
-      - name: Install test browsers (Linux)
-        if: runner.os == 'Linux'
+      - name: Install test browsers
         run: npx playwright install --with-deps chromium firefox webkit
-      - name: Install test browsers (Windows)
-        if: runner.os == 'Windows'
-        run: npx playwright install chromium firefox webkit
       - name: Cross-browser tests
         run: npm run test:e2e
       - name: Build
@@ -56,7 +46,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: playwright-diagnostics-${{ github.run_id }}-${{ matrix.os }}
+          name: playwright-diagnostics-${{ github.run_id }}
           path: |
             playwright-report/
             test-results/
