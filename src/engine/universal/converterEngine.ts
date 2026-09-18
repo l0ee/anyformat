@@ -1,11 +1,12 @@
 import { traceWorkerClient } from '../../workers/traceWorkerClient';
 import { optimizeSvg } from '../svgOptimizer';
 import { rasterizeSvgToBlob } from '../svgRasterizer';
+import { convertImageToPdf, convertPdfToImage, convertPdfToSvg, convertSvgToPdf } from '../pdfConverter';
 import { getFileExtension, isSupportedConversion, SUPPORTED_FORMATS } from './types';
 
 /**
  * Universal File Converter Engine
- * Performs supported image and SVG conversions with browser APIs.
+ * Performs supported image, SVG, and PDF conversions with browser APIs.
  */
 export async function convertUniversalFile(
   file: File,
@@ -26,7 +27,39 @@ export async function convertUniversalFile(
 
   onProgress?.(20);
 
-  // 1. Convert SVG input to raster (PNG / JPG / WEBP).
+  // 1. Exporting to PDF (Image / SVG -> PDF)
+  if (targetLower === 'pdf') {
+    onProgress?.(50);
+    let blob: Blob;
+    if (sourceExt === 'svg' || file.type === 'image/svg+xml') {
+      const svgText = await file.text();
+      blob = await convertSvgToPdf(svgText);
+    } else {
+      blob = await convertImageToPdf(file);
+    }
+    onProgress?.(100);
+    return { blob, mimeType: 'application/pdf', filename: `${baseName}.pdf` };
+  }
+
+  // 2. Exporting from PDF (PDF -> Image / SVG)
+  if (sourceExt === 'pdf') {
+    onProgress?.(50);
+    let blob: Blob;
+    let mimeType: string;
+
+    if (targetLower === 'svg') {
+      blob = await convertPdfToSvg(file);
+      mimeType = 'image/svg+xml';
+    } else {
+      blob = await convertPdfToImage(file, targetLower);
+      mimeType = targetLower === 'jpg' || targetLower === 'jpeg' ? 'image/jpeg' : `image/${targetLower}`;
+    }
+
+    onProgress?.(100);
+    return { blob, mimeType, filename: `${baseName}.${targetLower}` };
+  }
+
+  // 3. Convert SVG input to raster (PNG / JPG / WEBP).
   if (sourceExt === 'svg' || file.type === 'image/svg+xml') {
     const svgText = await file.text();
     const format = targetLower === 'jpg' ? 'jpeg' : (targetLower as 'png' | 'jpeg' | 'webp');
@@ -35,7 +68,7 @@ export async function convertUniversalFile(
     return { blob, mimeType: `image/${format}`, filename: `${baseName}.${targetLower}` };
   }
 
-  // 2. Convert raster input to SVG with the custom tracing worker
+  // 4. Convert raster input to SVG with the custom tracing worker
   if (targetLower === 'svg') {
     onProgress?.(40);
     const traceResult = await traceWorkerClient.traceColor(file, {
@@ -58,7 +91,7 @@ export async function convertUniversalFile(
     return { blob, mimeType: 'image/svg+xml', filename: `${baseName}.svg` };
   }
 
-  // 3. Standard raster-to-raster conversion (PNG / JPG / WEBP) via Canvas.
+  // 5. Standard raster-to-raster conversion (PNG / JPG / WEBP) via Canvas.
   onProgress?.(50);
   const blob = await convertRasterViaCanvas(file, targetLower);
   onProgress?.(100);

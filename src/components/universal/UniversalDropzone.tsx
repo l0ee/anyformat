@@ -61,7 +61,7 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
         type="file"
         onChange={handleInputChange}
         multiple
-        accept=".png,.jpg,.jpeg,.webp,.bmp,.svg,image/png,image/jpeg,image/webp,image/bmp,image/svg+xml"
+        accept=".png,.jpg,.jpeg,.webp,.bmp,.svg,.pdf,image/png,image/jpeg,image/webp,image/bmp,image/svg+xml,application/pdf"
         aria-describedby={`${descriptionId}${error ? ` ${errorId}` : ''}`}
         className="peer sr-only"
       />
@@ -76,7 +76,7 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
       >
         <div className="text-center mb-4 relative z-10">
           <span className="inline-block px-5 py-1.5 rounded-full text-xs sm:text-sm font-extrabold uppercase tracking-widest text-pink-950 dark:text-pink-100 bg-white/80 dark:bg-slate-900/80 border border-pink-200/50 dark:border-pink-800/50 backdrop-blur-md shadow-md">
-            SUPPORTED IMAGE &amp; SVG FORMAT CONVERTER
+            UNIVERSAL FILE CONVERTER (IMAGE, SVG &amp; PDF)
           </span>
         </div>
 
@@ -106,7 +106,7 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
           </h3>
 
           <p id={descriptionId} className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 mb-6">
-            PNG, JPEG, WebP, BMP, and SVG input; available outputs depend on the source format
+            PNG, JPEG, WebP, BMP, SVG, and PDF input; available outputs depend on the source format
           </p>
 
           <span
