@@ -78,6 +78,10 @@ function resolveRequestPath(distDir, requestUrl) {
     return null;
   }
 
+  if (!pathname || pathname.includes('\0')) {
+    return null;
+  }
+
   const relativePath = pathname.replace(/^\/+/, '');
   const resolved = path.resolve(distDir, relativePath, pathname.endsWith('/') ? 'index.html' : '');
   const distRoot = path.resolve(distDir);
@@ -160,30 +164,35 @@ export function createProductionServer({ distDir = path.join(__dirname, 'dist') 
       return;
     }
 
-    fs.readFile(resolved.filePath, (error, content) => {
-      if (!error) {
-        sendBuffer(req, res, resolved.filePath, content);
-        return;
-      }
+    try {
+      fs.readFile(resolved.filePath, (error, content) => {
+        if (!error) {
+          sendBuffer(req, res, resolved.filePath, content);
+          return;
+        }
 
-      const isNotFound = error.code === 'ENOENT' || error.code === 'EISDIR';
-      const isClientRoute = isNotFound && !path.extname(resolved.pathname);
-      if (isClientRoute) {
-        const indexPath = path.join(distDir, 'index.html');
-        fs.readFile(indexPath, (indexError, indexContent) => {
-          if (indexError) {
-            res.writeHead(500, securityHeaders());
-            res.end('Unable to load the application');
-          } else {
-            sendBuffer(req, res, indexPath, indexContent);
-          }
-        });
-        return;
-      }
+        const isNotFound = error.code === 'ENOENT' || error.code === 'EISDIR';
+        const isClientRoute = isNotFound && !path.extname(resolved.pathname);
+        if (isClientRoute) {
+          const indexPath = path.join(distDir, 'index.html');
+          fs.readFile(indexPath, (indexError, indexContent) => {
+            if (indexError) {
+              res.writeHead(500, securityHeaders());
+              res.end('Unable to load the application');
+            } else {
+              sendBuffer(req, res, indexPath, indexContent);
+            }
+          });
+          return;
+        }
 
-      res.writeHead(isNotFound ? 404 : 500, securityHeaders());
-      res.end(isNotFound ? 'Not Found' : 'Server Error');
-    });
+        res.writeHead(isNotFound ? 404 : 500, securityHeaders());
+        res.end(isNotFound ? 'Not Found' : 'Server Error');
+      });
+    } catch {
+      res.writeHead(500, securityHeaders());
+      res.end('Server Error');
+    }
   });
 }
 

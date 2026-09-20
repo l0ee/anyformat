@@ -102,24 +102,35 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
           </div>
 
           <h3 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-white tracking-tight mb-2">
-            Drop supported files here to convert
+            Choose or drag files here
           </h3>
 
           <p id={descriptionId} className="text-xs sm:text-sm font-semibold text-stone-600 dark:text-slate-200 mb-6">
-            PNG, JPEG, WebP, BMP, SVG, and PDF input; available outputs depend on the source format
+            PNG, JPEG, WebP, BMP, SVG, and PDF input (up to 100 MB each)
           </p>
 
           <span
             aria-hidden="true"
             className="inline-flex min-h-11 items-center gap-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold text-sm sm:text-base px-8 py-3.5 rounded-full shadow-lg shadow-pink-500/25 group-hover:shadow-pink-500/40 group-hover:scale-105 transition-all duration-300 motion-reduce:transition-none motion-reduce:transform-none"
           >
-            <span>Select Files</span>
+            <span>Choose Files</span>
             <svg className="w-4 h-4 transition-transform motion-reduce:transition-none motion-reduce:transform-none group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </span>
         </label>
       </div>
+
+      {/* Popular Conversion Pairs */}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs font-medium text-stone-600 dark:text-slate-400">
+        <span className="font-semibold text-stone-700 dark:text-slate-300">Popular:</span>
+        <span className="rounded-lg border border-stone-300/80 bg-[#faf5ef] px-2.5 py-1 text-stone-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">PNG to SVG</span>
+        <span className="rounded-lg border border-stone-300/80 bg-[#faf5ef] px-2.5 py-1 text-stone-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">PDF to PNG</span>
+        <span className="rounded-lg border border-stone-300/80 bg-[#faf5ef] px-2.5 py-1 text-stone-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">WebP to PNG</span>
+        <span className="rounded-lg border border-stone-300/80 bg-[#faf5ef] px-2.5 py-1 text-stone-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">SVG to PDF</span>
+        <span className="rounded-lg border border-stone-300/80 bg-[#faf5ef] px-2.5 py-1 text-stone-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">JPEG to WebP</span>
+      </div>
+
       {error && (
         <p id={errorId} role="alert" className="mt-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-900 dark:bg-rose-950/60 dark:text-rose-200">
           {error}

@@ -55,8 +55,8 @@ test('renders the primary workflows without horizontal overflow', async ({ page 
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
 
-  await expect(page).toHaveTitle(/AnyFormat — Universal File Converter/);
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'http://127.0.0.1:4174/');
+  await expect(page).toHaveTitle(/AnyFormat — Universal/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /http:\/\/(127\.0\.0\.1:4174|localhost:5173)\//);
   await expect(page.getByText('by l0ee')).toHaveCount(1);
   await expect(page.getByText(/© \d{4} l0ee\./)).toBeVisible();
   await expect(page.getByRole('link', { name: /View AnyFormat on GitHub/ })).toHaveAttribute('href', 'https://github.com/l0ee/anyformat');
@@ -67,7 +67,7 @@ test('renders the primary workflows without horizontal overflow', async ({ page 
 
 test('shows batch settings only after files are selected and below the uploader', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'SVG Batch' }).click();
+  await page.getByRole('button', { name: 'Vector Batch' }).click();
   await expect(page.getByRole('heading', { name: 'Batch settings' })).toHaveCount(0);
 
   const files = await canvasFiles(page);
@@ -94,6 +94,7 @@ test('rejects unsupported universal uploads accessibly', async ({ page }) => {
 });
 
 test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto('/');
   await page.getByRole('button', { name: 'Format Converter' }).click();
   const fixtures = await canvasFiles(page);

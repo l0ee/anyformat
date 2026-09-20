@@ -334,6 +334,7 @@ function fitCurves(pts: Point[], optTolerance: number): CurveSegment[] {
   if (n < 2) return curves;
 
   for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n];
     const p0 = pts[i];
     const p1 = pts[(i + 1) % n];
     const p2 = pts[(i + 2) % n];
@@ -348,14 +349,14 @@ function fitCurves(pts: Point[], optTolerance: number): CurveSegment[] {
         c2: p1
       });
     } else {
-      // Smooth Bézier control points (1/3 and 2/3 heuristics)
+      // Smooth Catmull-Rom to Bézier control points (C1 continuous)
       const ctrl1 = {
-        x: p0.x + (p1.x - p0.x) * 0.6667,
-        y: p0.y + (p1.y - p0.y) * 0.6667
+        x: p0.x + (p1.x - prev.x) / 6,
+        y: p0.y + (p1.y - prev.y) / 6
       };
       const ctrl2 = {
-        x: p1.x + (p2.x - p1.x) * 0.3333,
-        y: p1.y + (p2.y - p1.y) * 0.3333
+        x: p1.x - (p2.x - p0.x) / 6,
+        y: p1.y - (p2.y - p0.y) / 6
       };
       curves.push({
         type: 'bezier',
