@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { HeroHeader } from './components/HeroHeader';
+import { HoverBackground } from './components/HoverBackground';
 import { Dropzone } from './components/Dropzone';
 import { PresetSelector } from './components/PresetSelector';
 import { ControlPanel } from './components/ControlPanel';
@@ -586,7 +587,8 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="app-shell relative isolate min-h-screen overflow-x-clip bg-slate-50 text-slate-900 transition-colors dark:bg-slate-950 dark:text-white">
+    <div className="app-shell relative isolate min-h-screen overflow-x-clip text-stone-900 transition-colors dark:text-white">
+      <HoverBackground />
       <a href="#main-content" className="skip-link">
         Skip to converter
       </a>
@@ -638,20 +640,20 @@ export const App: React.FC = () => {
                     <img
                       src={originalUrl}
                       alt={`Preview of ${selectedFile.name}`}
-                      className="h-12 w-12 shrink-0 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
+                      className="h-12 w-12 shrink-0 rounded-xl border border-stone-300/80 object-cover dark:border-slate-700"
                     />
                     <div className="min-w-0">
-                      <h4 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                      <h4 className="truncate text-sm font-bold text-stone-900 dark:text-slate-100">
                         {selectedFile.name}
                       </h4>
-                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+                      <p className="mt-0.5 text-xs text-stone-600 dark:text-slate-400">
                         {(selectedFile.size / 1024).toFixed(1)} KB • {dimensions.width} x {dimensions.height} px
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={resetSingleFileState}
-                    className="min-h-11 shrink-0 self-start rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100 sm:self-auto dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/70"
+                    className="min-h-11 shrink-0 self-start rounded-xl border border-rose-300/80 bg-rose-100/60 px-4 py-2 text-xs font-bold text-rose-800 transition-colors hover:bg-rose-100 sm:self-auto dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/70"
                   >
                     Change File
                   </button>
@@ -720,10 +722,10 @@ export const App: React.FC = () => {
 
             {batchItems.length > 0 && (
               <>
-                <section aria-labelledby="batch-settings-heading" className="space-y-5 rounded-2xl border border-slate-200/80 bg-white/80 p-4 text-slate-900 shadow-xl backdrop-blur-md sm:p-5 dark:border-slate-800 dark:bg-slate-900/80 dark:text-white">
+                <section aria-labelledby="batch-settings-heading" className="app-panel space-y-5 rounded-2xl p-4 text-stone-900 sm:p-5 dark:text-white">
                   <div>
-                    <h2 id="batch-settings-heading" className="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">Batch settings</h2>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Choose a preset or tune the shared tracing controls before processing the queue.</p>
+                    <h2 id="batch-settings-heading" className="text-sm font-bold uppercase tracking-wider text-stone-900 dark:text-white">Batch settings</h2>
+                    <p className="mt-1 text-xs text-stone-600 dark:text-slate-400">Choose a preset or tune the shared tracing controls before processing the queue.</p>
                   </div>
                   <PresetSelector selectedPreset={selectedPreset} onSelectPreset={handlePresetSelect} />
                   <ControlPanel

@@ -5,10 +5,10 @@
 @layer base {
   :root {
     color-scheme: light;
-    --app-surface: rgb(255 255 255 / 0.88);
-    --app-border: rgb(148 163 184 / 0.35);
-    --app-shadow: 0 24px 64px -32px rgb(15 23 42 / 0.34);
-    --app-focus: #0f766e;
+    --app-surface: rgb(253 250 246 / 0.90);
+    --app-border: rgb(214 186 172 / 0.50);
+    --app-shadow: 0 24px 64px -32px rgb(140 100 80 / 0.18);
+    --app-focus: #e11d48;
   }
 
   :root.dark {
@@ -29,18 +29,20 @@
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    background: #f8fafc;
+    background: #f7f2ed;
+    color: #292524;
     font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     text-rendering: optimizeLegibility;
   }
 
   .dark body {
     background: #020617;
+    color: #f8fafc;
   }
 
   ::selection {
     color: #f8fafc;
-    background: #6d28d9;
+    background: #e11d48;
   }
 
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
@@ -58,10 +60,44 @@
 
 @layer components {
   .app-shell {
+    background-color: #f7f2ed;
     background-image:
-      radial-gradient(circle at 12% 2%, rgb(45 212 191 / 0.16), transparent 30rem),
-      radial-gradient(circle at 88% 4%, rgb(124 58 237 / 0.16), transparent 34rem),
-      linear-gradient(to bottom, #f8fafc, #eff6ff 48%, #f5f3ff);
+      radial-gradient(circle at 14% 3%, rgb(244 63 94 / 0.10), transparent 32rem),
+      radial-gradient(circle at 86% 5%, rgb(217 165 130 / 0.15), transparent 36rem),
+      radial-gradient(circle at 50% 45%, rgb(244 114 182 / 0.08), transparent 42rem),
+      repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 36px,
+        rgb(217 195 180 / 0.12) 37px,
+        rgb(217 195 180 / 0.12) 39px,
+        transparent 40px
+      ),
+      linear-gradient(to bottom, #faf6f1, #f4ece4 45%, #eee3d8);
+  }
+
+  .hover-glow-blob {
+    width: 600px;
+    height: 600px;
+    margin-top: -300px;
+    margin-left: -300px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at center,
+      rgb(244 63 94 / 0.15),
+      rgb(217 165 130 / 0.14) 45%,
+      transparent 80%
+    );
+    will-change: transform, opacity;
+  }
+
+  .dark .hover-glow-blob {
+    background: radial-gradient(
+      circle at center,
+      rgb(251 113 133 / 0.18),
+      rgb(129 140 248 / 0.12) 45%,
+      transparent 85%
+    );
   }
 
   .dark .app-shell {
@@ -222,12 +258,21 @@
   .app-shell video[autoplay] {
     display: none;
   }
+
+  .hover-glow-blob {
+    display: none !important;
+  }
+}
+
+@media (hover: none) {
+  .hover-glow-blob {
+    display: none !important;
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root,
-  :root.dark {
-    --app-surface: rgb(255 255 255 / 0.98);
+  :root {
+    --app-surface: rgb(253 250 246 / 0.98);
   }
 
   :root.dark {

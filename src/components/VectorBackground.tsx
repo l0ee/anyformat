@@ -12,7 +12,7 @@ interface Node {
   vx: number;
   vy: number;
   radius: number;
-  color: string;
+  colorIndex: number;
 }
 
 export const VectorBackground: React.FC<VectorBackgroundProps> = ({
@@ -39,14 +39,6 @@ export const VectorBackground: React.FC<VectorBackgroundProps> = ({
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    // Palette: rose, pink, and indigo to align with AnyFormat's brand
-    const colors = [
-      'rgba(244, 63, 94, ',   // rose-500
-      'rgba(236, 72, 153, ',  // pink-500
-      'rgba(99, 102, 241, ',  // indigo-500
-      'rgba(168, 85, 247, ',  // purple-500
-    ];
-
     const nodes: Node[] = [];
     for (let i = 0; i < nodeCount; i++) {
       nodes.push({
@@ -55,7 +47,7 @@ export const VectorBackground: React.FC<VectorBackgroundProps> = ({
         vx: (Math.random() - 0.5) * 0.35,
         vy: (Math.random() - 0.5) * 0.35,
         radius: 1.5 + Math.random() * 1.5,
-        color: colors[i % colors.length],
+        colorIndex: i,
       });
     }
 
@@ -77,12 +69,29 @@ export const VectorBackground: React.FC<VectorBackgroundProps> = ({
       if (isDestroyed) return;
 
       const isDark = document.documentElement.classList.contains('dark');
-      const baseAlpha = isDark ? 0.28 : 0.16;
-      const lineAlphaFactor = isDark ? 0.22 : 0.12;
+      const baseAlpha = isDark ? 0.28 : 0.20;
+      const lineAlphaFactor = isDark ? 0.22 : 0.16;
+
+      // Palette:
+      // Dark mode: neon rose, pink, indigo, purple
+      // Light mode: warm desert rose, golden sand amber, rosewood, sandstone terracotta
+      const themeColors = isDark
+        ? [
+            'rgba(244, 63, 94, ',   // rose-500
+            'rgba(236, 72, 153, ',  // pink-500
+            'rgba(129, 140, 248, ', // indigo-400
+            'rgba(192, 132, 252, ', // purple-400
+          ]
+        : [
+            'rgba(225, 29, 72, ',   // desert rose-600
+            'rgba(217, 119, 6, ',   // warm amber/sand-600
+            'rgba(219, 39, 119, ',  // pink-600
+            'rgba(180, 115, 80, ',  // sandstone terracotta
+          ];
 
       ctx.clearRect(0, 0, width, height);
 
-      // 1. Draw flowing background Bézier wave ribbons
+      // 1. Draw flowing background Bézier wave ribbons (wind-blown dune crests)
       t += 0.004;
       const waveCount = 2;
       for (let w = 0; w < waveCount; w++) {
@@ -97,7 +106,7 @@ export const VectorBackground: React.FC<VectorBackgroundProps> = ({
 
         ctx.moveTo(0, startY);
         ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, width, endY);
-        ctx.strokeStyle = `${colors[w % colors.length]}${baseAlpha * 0.75})`;
+        ctx.strokeStyle = `${themeColors[w % themeColors.length]}${baseAlpha * 0.85})`;
         ctx.lineWidth = 1.25;
         ctx.stroke();
       }
@@ -117,7 +126,7 @@ export const VectorBackground: React.FC<VectorBackgroundProps> = ({
             ctx.lineTo(nodes[j].x, nodes[j].y);
             ctx.strokeStyle = isDark
               ? `rgba(226, 232, 240, ${alpha})`
-              : `rgba(100, 116, 139, ${alpha})`;
+              : `rgba(180, 135, 115, ${alpha * 1.25})`;
             ctx.lineWidth = 0.75;
             ctx.stroke();
           }
@@ -126,16 +135,18 @@ export const VectorBackground: React.FC<VectorBackgroundProps> = ({
 
       // 3. Draw vector anchor points and handles
       for (const node of nodes) {
+        const nodeColor = themeColors[node.colorIndex % themeColors.length];
+
         // Point
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `${node.color}${baseAlpha * 1.5})`;
+        ctx.fillStyle = `${nodeColor}${baseAlpha * 1.5})`;
         ctx.fill();
 
         // Subtle anchor coordinate ring
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius + 2, 0, Math.PI * 2);
-        ctx.strokeStyle = `${node.color}${baseAlpha * 0.5})`;
+        ctx.strokeStyle = `${nodeColor}${baseAlpha * 0.6})`;
         ctx.lineWidth = 0.5;
         ctx.stroke();
 

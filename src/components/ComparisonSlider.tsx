@@ -58,7 +58,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
             className="max-w-full max-h-full object-contain pointer-events-none"
           />
         )}
-        <span className="absolute top-4 left-4 bg-white/90 dark:bg-slate-900/90 text-slate-900 dark:text-white border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xl text-xs font-semibold uppercase tracking-widest px-3 py-1.5 backdrop-blur z-20">
+        <span className="absolute top-4 left-4 bg-[#faf5ef]/95 dark:bg-slate-900/90 text-stone-900 dark:text-white border border-stone-300/80 dark:border-slate-800 rounded-2xl shadow-xl text-xs font-semibold uppercase tracking-widest px-3 py-1.5 backdrop-blur z-20">
           ORIGINAL RASTER
         </span>
       </div>
@@ -75,7 +75,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
             className="max-w-full max-h-full object-contain pointer-events-none"
           />
         )}
-        <span className="absolute top-4 right-4 bg-white/90 dark:bg-slate-900/90 text-slate-900 dark:text-white border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xl text-xs font-semibold uppercase tracking-widest px-3 py-1.5 backdrop-blur z-20">
+        <span className="absolute top-4 right-4 bg-[#faf5ef]/95 dark:bg-slate-900/90 text-stone-900 dark:text-white border border-stone-300/80 dark:border-slate-800 rounded-2xl shadow-xl text-xs font-semibold uppercase tracking-widest px-3 py-1.5 backdrop-blur z-20">
           VECTOR SVG
         </span>
       </div>
@@ -101,7 +101,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
         className="absolute top-0 bottom-0 w-0.5 bg-neutral-300 cursor-ew-resize z-10 transition-[left] duration-75 motion-reduce:transition-none"
         style={{ left: `${sliderPosition}%` }}
       >
-        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white/90 shadow-xl flex items-center justify-center text-neutral-900 border border-neutral-300">
+        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[#faf5ef] shadow-xl flex items-center justify-center text-stone-800 border border-stone-300">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8M8 12h8M8 17h8" />
           </svg>

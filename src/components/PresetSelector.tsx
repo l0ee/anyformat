@@ -34,7 +34,7 @@ export const PresetSelector: React.FC<PresetSelectorProps> = ({
 }) => {
   return (
     <fieldset className="space-y-3 font-['Plus_Jakarta_Sans',sans-serif]">
-      <legend className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+      <legend className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400">
         Preset Workflows
       </legend>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -52,17 +52,17 @@ export const PresetSelector: React.FC<PresetSelectorProps> = ({
                 className="peer sr-only"
               />
               <span
-                className={`block min-h-28 p-3 text-left transition-all motion-reduce:transition-none bg-white/70 dark:bg-slate-900/70 border backdrop-blur-md rounded-2xl text-slate-900 dark:text-white peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950 ${
+                className={`block min-h-28 p-3 text-left transition-all motion-reduce:transition-none bg-[#faf5ef]/80 dark:bg-slate-900/70 border backdrop-blur-md rounded-2xl text-stone-900 dark:text-white peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950 ${
                   active
-                    ? 'border-pink-500 bg-pink-50/80 dark:bg-slate-800/90 dark:border-pink-500 ring-2 ring-pink-500/20 shadow-md'
-                    : 'border-slate-200/60 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800 shadow-sm'
+                    ? 'border-pink-500 bg-pink-100/60 dark:bg-slate-800/90 dark:border-pink-500 ring-2 ring-pink-500/20 shadow-md'
+                    : 'border-stone-300/70 dark:border-slate-800 hover:bg-[#fdfaf6] dark:hover:bg-slate-800 shadow-sm'
                 }`}
               >
               <span className="mb-2 block text-pink-500" aria-hidden="true">
                 <IconComponent className="w-5 h-5" />
               </span>
-              <span className="block text-xs font-bold tracking-wider uppercase text-slate-900 dark:text-white">{p.label}</span>
-              <span className="block text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-1 line-clamp-2">
+              <span className="block text-xs font-bold tracking-wider uppercase text-stone-900 dark:text-white">{p.label}</span>
+              <span className="block text-[10px] text-stone-600 dark:text-slate-400 leading-tight mt-1 line-clamp-2">
                 {p.desc}
               </span>
               </span>
