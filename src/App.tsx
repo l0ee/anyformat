@@ -75,27 +75,6 @@ const isSupportedRasterFile = (file: File): boolean => {
   return SUPPORTED_RASTER_EXTENSIONS.has(extension) || SUPPORTED_RASTER_MIME_TYPES.has(file.type);
 };
 
-function useStickyState<T>(defaultValue: T, key: string) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const stickyValue = window.localStorage.getItem(key);
-      return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // Ignore in private browsing
-    }
-  }, [key, value]);
-
-  return [value, setValue] as const;
-}
-
 const getStoredTheme = (): boolean => {
   try {
     return localStorage.getItem('theme') !== 'light';
@@ -114,7 +93,7 @@ const setStoredTheme = (darkMode: boolean): void => {
 
 export const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState<boolean>(getStoredTheme);
-  const [activeTab, setActiveTab] = useStickyState<'single' | 'batch' | 'universal'>('single', 'anyformat-active-tab');
+  const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'universal'>('single');
   const [toast, setToast] = useState<Toast | null>(null);
 
   // Universal File Converter state
@@ -124,10 +103,10 @@ export const App: React.FC = () => {
   // Single file state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string>('');
-  const [tracingMode, setTracingMode] = useStickyState<'monochrome' | 'color'>('color', 'anyformat-tracing-mode');
-  const [selectedPreset, setSelectedPreset] = useStickyState<PresetType>('photo', 'anyformat-selected-preset');
+  const [tracingMode, setTracingMode] = useState<'monochrome' | 'color'>('color');
+  const [selectedPreset, setSelectedPreset] = useState<PresetType>('photo');
 
-  const [monoOpts, setMonoOpts] = useStickyState<MonochromeOptions>({
+  const [monoOpts, setMonoOpts] = useState<MonochromeOptions>({
     threshold: 128,
     invert: false,
     turdSize: 2,
@@ -136,23 +115,23 @@ export const App: React.FC = () => {
     turnPolicy: 'minority',
     blackOnWhite: true,
     maxResolution: 1024,
-  }, 'anyformat-mono-opts');
+  });
 
-  const [colorOpts, setColorOpts] = useStickyState<ColorTracerOptions>({
+  const [colorOpts, setColorOpts] = useState<ColorTracerOptions>({
     numberOfColors: 8,
     quantization: 'kmeans',
     turdSize: 2,
     alphaMax: 1.0,
     blurRadius: 0,
     maxResolution: 1024,
-  }, 'anyformat-color-opts');
+  });
 
-  const [optOpts, setOptOpts] = useStickyState<OptimizeOptions>({
+  const [optOpts, setOptOpts] = useState<OptimizeOptions>({
     precision: 2,
     removeComments: true,
     removeMetadata: true,
     minify: false,
-  }, 'anyformat-opt-opts');
+  });
 
   const [rawSvg, setRawSvg] = useState<string>('');
   const [optimizedSvg, setOptimizedSvg] = useState<string>('');

@@ -32,6 +32,7 @@ export function getClipboardImages(
         file,
         mimeType: normalizeMimeType(file.type)
       }));
+
   const supportedFiles = availableFiles.filter(({ file, mimeType }) =>
     file.size > 0 && Boolean(extensionByMimeType[mimeType])
   );
