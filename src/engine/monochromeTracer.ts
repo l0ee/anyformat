@@ -1,4 +1,5 @@
-import { Point, MonochromeOptions, TraceResult } from './types';
+import { Point, MonochromeOptions, TraceResult, TurnPolicy } from './types';
+import { restoreTraceDimensions } from '../workers/traceWorkerUtils';
 
 interface CurveSegment {
   type: 'line' | 'bezier';
@@ -119,15 +120,15 @@ export function traceMonochromeFromImageData(
     // Luminance
     const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     let isBlack = luminance < threshold;
-    if (a < 128) isBlack = false; // Transparent treated as background
     if (invert) isBlack = !isBlack;
+    if (a < 128) isBlack = false; // Transparent treated as background
     const x = (i / 4) % width;
     const y = Math.floor((i / 4) / width);
     bm.set(x, y, isBlack);
   }
 
   // Find paths
-  const paths = findPaths(bm, turdSize);
+  const paths = findPaths(bm, turdSize, options.turnPolicy);
 
   // Process paths into curves
   let totalNodes = 0;
@@ -138,11 +139,16 @@ export function traceMonochromeFromImageData(
     const d = curveToSvgPath(path.curves);
     if (d) {
       totalNodes += path.curves.length;
-      svgPathsStr += `<path d="${d}" fill="${options.blackOnWhite ? '#000000' : 'currentColor'}" fill-rule="evenodd"/>\n`;
+      const strokeAttr = (options.strokeWidth !== undefined && options.strokeWidth > 0)
+        ? ` stroke="${options.blackOnWhite ? '#000000' : 'currentColor'}" stroke-width="${options.strokeWidth}"`
+        : '';
+      svgPathsStr += `<path d="${d}" fill="${options.blackOnWhite ? '#000000' : 'currentColor'}" fill-rule="evenodd"${strokeAttr}/>\n`;
     }
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  const svg = `<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->
+<svg xmlns="http://www.w3.org/2000/svg" data-generator="AnyFormat" data-author="l0ee" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  <desc>Converted by AnyFormat (https://github.com/l0ee/anyformat) by l0ee</desc>
 ${svgPathsStr}</svg>`;
 
   return {
@@ -163,7 +169,7 @@ export async function traceMonochrome(
   let origHeight: number;
 
   if (fileOrData instanceof File) {
-    const loaded = await loadImageData(fileOrData, 1024);
+    const loaded = await loadImageData(fileOrData, options.maxResolution ?? 1024);
     imageData = loaded.imageData;
     origWidth = loaded.origWidth;
     origHeight = loaded.origHeight;
@@ -175,24 +181,15 @@ export async function traceMonochrome(
 
   const result = traceMonochromeFromImageData(imageData, options);
 
-  // Restore SVG viewBox to match original high-res dimensions
+  // Restore SVG width/height to match original dimensions without distorting viewBox coordinate system
   if (origWidth !== result.width || origHeight !== result.height) {
-    const svgWithOrigViewBox = result.svg
-      .replace(`viewBox="0 0 ${result.width} ${result.height}"`, `viewBox="0 0 ${origWidth} ${origHeight}"`)
-      .replace(`width="${result.width}" height="${result.height}"`, `width="${origWidth}" height="${origHeight}"`);
-
-    return {
-      ...result,
-      width: origWidth,
-      height: origHeight,
-      svg: svgWithOrigViewBox
-    };
+    return restoreTraceDimensions(result, origWidth, origHeight);
   }
 
   return result;
 }
 
-function findPaths(bm: BitMap, turdSize: number): Path[] {
+function findPaths(bm: BitMap, turdSize: number, turnPolicy?: TurnPolicy): Path[] {
   const paths: Path[] = [];
   const w = bm.w;
   const h = bm.h;
@@ -207,7 +204,7 @@ function findPaths(bm: BitMap, turdSize: number): Path[] {
         visited[idx] = 1;
 
         // Trace contour boundary
-        const path = findContour(bm, x, y, visited);
+        const path = findContour(bm, x, y, visited, turnPolicy);
         if (path && Math.abs(path.area) >= turdSize) {
           paths.push(path);
         }
@@ -218,7 +215,19 @@ function findPaths(bm: BitMap, turdSize: number): Path[] {
   return paths;
 }
 
-function findContour(bm: BitMap, startX: number, startY: number, visited: Uint8Array): Path | null {
+function countBlackNeighbors(bm: BitMap, cx: number, cy: number): number {
+  let count = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (bm.get(cx + dx, cy + dy)) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+function findContour(bm: BitMap, startX: number, startY: number, visited: Uint8Array, turnPolicy?: TurnPolicy): Path | null {
   const path = new Path();
   const pts: Point[] = [];
   let area = 0;
@@ -244,25 +253,60 @@ function findContour(bm: BitMap, startX: number, startY: number, visited: Uint8A
       visited[y * bm.w + x] = 1;
     }
 
-    // Check pixel to left relative to current direction
-    const turnLeftDir = (dir + 3) % 4;
-    const lx = x + dx[turnLeftDir];
-    const ly = y + dy[turnLeftDir];
-
-    if (bm.get(lx, ly)) {
-      dir = turnLeftDir;
-      x = lx;
-      y = ly;
+    let preferRight: boolean;
+    if (turnPolicy === 'right' || turnPolicy === 'white') {
+      preferRight = true;
+    } else if (turnPolicy === 'left' || turnPolicy === 'black') {
+      preferRight = false;
+    } else if (turnPolicy === 'majority') {
+      const blackCount = countBlackNeighbors(bm, x, y);
+      preferRight = blackCount < 5;
     } else {
-      // Check forward
-      const fx = x + dx[dir];
-      const fy = y + dy[dir];
-      if (bm.get(fx, fy)) {
-        x = fx;
-        y = fy;
+      // 'minority' or default
+      const blackCount = countBlackNeighbors(bm, x, y);
+      preferRight = blackCount >= 5;
+    }
+
+    if (preferRight) {
+      const turnRightDir = (dir + 1) % 4;
+      const rx = x + dx[turnRightDir];
+      const ry = y + dy[turnRightDir];
+
+      if (bm.get(rx, ry)) {
+        dir = turnRightDir;
+        x = rx;
+        y = ry;
       } else {
-        // Turn right
-        dir = (dir + 1) % 4;
+        const fx = x + dx[dir];
+        const fy = y + dy[dir];
+        if (bm.get(fx, fy)) {
+          x = fx;
+          y = fy;
+        } else {
+          dir = (dir + 3) % 4;
+        }
+      }
+    } else {
+      // Check pixel to left relative to current direction
+      const turnLeftDir = (dir + 3) % 4;
+      const lx = x + dx[turnLeftDir];
+      const ly = y + dy[turnLeftDir];
+
+      if (bm.get(lx, ly)) {
+        dir = turnLeftDir;
+        x = lx;
+        y = ly;
+      } else {
+        // Check forward
+        const fx = x + dx[dir];
+        const fy = y + dy[dir];
+        if (bm.get(fx, fy)) {
+          x = fx;
+          y = fy;
+        } else {
+          // Turn right
+          dir = (dir + 1) % 4;
+        }
       }
     }
 
@@ -334,6 +378,7 @@ function fitCurves(pts: Point[], optTolerance: number): CurveSegment[] {
   if (n < 2) return curves;
 
   for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n];
     const p0 = pts[i];
     const p1 = pts[(i + 1) % n];
     const p2 = pts[(i + 2) % n];
@@ -348,14 +393,14 @@ function fitCurves(pts: Point[], optTolerance: number): CurveSegment[] {
         c2: p1
       });
     } else {
-      // Smooth Bézier control points (1/3 and 2/3 heuristics)
+      // Smooth Catmull-Rom to Bézier control points (C1 continuous)
       const ctrl1 = {
-        x: p0.x + (p1.x - p0.x) * 0.6667,
-        y: p0.y + (p1.y - p0.y) * 0.6667
+        x: p0.x + (p1.x - prev.x) / 6,
+        y: p0.y + (p1.y - prev.y) / 6
       };
       const ctrl2 = {
-        x: p1.x + (p2.x - p1.x) * 0.3333,
-        y: p1.y + (p2.y - p1.y) * 0.3333
+        x: p1.x - (p2.x - p0.x) / 6,
+        y: p1.y - (p2.y - p0.y) / 6
       };
       curves.push({
         type: 'bezier',

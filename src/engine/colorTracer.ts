@@ -1,13 +1,83 @@
 import { ColorTracerOptions, PaletteColor, TraceResult } from './types';
 import { traceMonochromeFromImageData, loadImageData } from './monochromeTracer';
 
+function createImageDataSafe(data: Uint8ClampedArray, width: number, height: number): ImageData {
+  if (typeof ImageData !== 'undefined') {
+    const ImageDataCtor = ImageData as unknown as new (
+      swOrData: Uint8ClampedArray,
+      shOrWidth: number,
+      settingsOrHeight?: number
+    ) => ImageData;
+    return new ImageDataCtor(data, width, height);
+  }
+  return { data, width, height, colorSpace: 'srgb' } as ImageData;
+}
+
+// Separable 2-pass box blur for image smoothing prior to quantization
+function applyBlur(imageData: ImageData, radius: number): ImageData {
+  if (radius <= 0) return imageData;
+  const r = Math.min(Math.floor(radius), 10);
+  const w = imageData.width;
+  const h = imageData.height;
+  if (w <= 0 || h <= 0) return imageData;
+  const src = imageData.data;
+  const target = new Uint8ClampedArray(src.length);
+
+  // Horizontal pass
+  const temp = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < h; y++) {
+    const rowOffset = y * w;
+    for (let x = 0; x < w; x++) {
+      let rSum = 0, gSum = 0, bSum = 0, aSum = 0, count = 0;
+      const minX = Math.max(0, x - r);
+      const maxX = Math.min(w - 1, x + r);
+      for (let k = minX; k <= maxX; k++) {
+        const idx = (rowOffset + k) * 4;
+        rSum += src[idx];
+        gSum += src[idx + 1];
+        bSum += src[idx + 2];
+        aSum += src[idx + 3];
+        count++;
+      }
+      const outIdx = (rowOffset + x) * 4;
+      temp[outIdx] = Math.round(rSum / count);
+      temp[outIdx + 1] = Math.round(gSum / count);
+      temp[outIdx + 2] = Math.round(bSum / count);
+      temp[outIdx + 3] = Math.round(aSum / count);
+    }
+  }
+
+  // Vertical pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let rSum = 0, gSum = 0, bSum = 0, aSum = 0, count = 0;
+      const minY = Math.max(0, y - r);
+      const maxY = Math.min(h - 1, y + r);
+      for (let k = minY; k <= maxY; k++) {
+        const idx = (k * w + x) * 4;
+        rSum += temp[idx];
+        gSum += temp[idx + 1];
+        bSum += temp[idx + 2];
+        aSum += temp[idx + 3];
+        count++;
+      }
+      const outIdx = (y * w + x) * 4;
+      target[outIdx] = Math.round(rSum / count);
+      target[outIdx + 1] = Math.round(gSum / count);
+      target[outIdx + 2] = Math.round(bSum / count);
+      target[outIdx + 3] = Math.round(aSum / count);
+    }
+  }
+
+  return createImageDataSafe(target, w, h);
+}
+
 export function traceColorFromImageData(
   imageData: ImageData,
   options: ColorTracerOptions = {},
   origWidth?: number,
   origHeight?: number
 ): TraceResult {
-  console.log('[DEBUG] traceColorFromImageData started');
   const oWidth = origWidth ?? imageData.width;
   const oHeight = origHeight ?? imageData.height;
 
@@ -22,7 +92,7 @@ export function traceColorFromImageData(
 
   if (width === 0 || height === 0) {
     return {
-      svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0"></svg>`,
+      svg: `<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->\n<svg xmlns="http://www.w3.org/2000/svg" data-generator="AnyFormat" data-author="l0ee" viewBox="0 0 0 0" width="0" height="0"></svg>`,
       width: 0,
       height: 0,
       pathCount: 0,
@@ -31,7 +101,11 @@ export function traceColorFromImageData(
     };
   }
 
-  const { palette, pixelAssignments } = quantizeKMeans(imageData, numberOfColors);
+  const effectiveImageData = options.blurRadius && options.blurRadius > 0
+    ? applyBlur(imageData, options.blurRadius)
+    : imageData;
+
+  const { palette, pixelAssignments } = quantizeKMeans(effectiveImageData, numberOfColors);
 
   // 2. Count frequencies & compute percentage
   const totalPixels = width * height;
@@ -42,7 +116,7 @@ export function traceColorFromImageData(
     if (assignment < colorCounts.length) colorCounts[assignment]++;
   }
 
-  const paletteColors: PaletteColor[] = palette.map((col, idx) => {
+  const paletteColors = palette.map((col, idx) => {
     const count = colorCounts[idx];
     const percentage = totalPixels > 0 ? Number(((count / totalPixels) * 100).toFixed(2)) : 0;
     const hex = rgbToHex(col.r, col.g, col.b);
@@ -52,7 +126,8 @@ export function traceColorFromImageData(
       b: col.b,
       a: col.a,
       hex,
-      percentage
+      percentage,
+      origIdx: idx
     };
   });
 
@@ -65,17 +140,13 @@ export function traceColorFromImageData(
   let svgLayersStr = '';
 
   const layerData = new Uint8ClampedArray(width * height * 4);
-  const maskImg = new ImageData(layerData, width, height);
+  const maskImg = createImageDataSafe(layerData, width, height);
 
   for (const color of paletteColors) {
     if (color.percentage / 100 < minColorRatio) continue;
     if (color.a < 10) continue; // Skip near transparent
 
-    // Find index of this color in original palette
-    const origIdx = palette.findIndex(
-      p => p.r === color.r && p.g === color.g && p.b === color.b
-    );
-    if (origIdx === -1) continue;
+    const origIdx = color.origIdx;
 
     // Fill binary mask for this color layer into reused buffer
     for (let i = 0; i < pixelAssignments.length; i++) {
@@ -110,12 +181,18 @@ export function traceColorFromImageData(
       // Extract path string content from monochrome result
       const pathsContent = extractPathsFromSvg(trace.svg, color.hex);
       if (pathsContent) {
-        svgLayersStr += `  <g id="layer-${color.hex.replace('#', '')}" fill="${color.hex}">\n${pathsContent}\n  </g>\n`;
+        const opacityAttr = color.a < 255 ? ` fill-opacity="${Number((color.a / 255).toFixed(2))}"` : '';
+        const strokeAttr = (options.strokeWidth !== undefined && options.strokeWidth > 0)
+          ? ` stroke="${color.hex}" stroke-width="${options.strokeWidth}"`
+          : '';
+        svgLayersStr += `  <g id="layer-${color.hex.replace('#', '')}" fill="${color.hex}"${opacityAttr}${strokeAttr}>\n${pathsContent}\n  </g>\n`;
       }
     }
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${oWidth}" height="${oHeight}">
+  const svg = `<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->
+<svg xmlns="http://www.w3.org/2000/svg" data-generator="AnyFormat" data-author="l0ee" viewBox="0 0 ${width} ${height}" width="${oWidth}" height="${oHeight}">
+  <desc>Converted by AnyFormat (https://github.com/l0ee/anyformat) by l0ee</desc>
 ${svgLayersStr}</svg>`;
 
   return {
@@ -124,7 +201,14 @@ ${svgLayersStr}</svg>`;
     height: oHeight,
     pathCount: totalPaths,
     nodeCount: totalNodes,
-    colors: paletteColors
+    colors: paletteColors.map((col): PaletteColor => ({
+      r: col.r,
+      g: col.g,
+      b: col.b,
+      a: col.a,
+      hex: col.hex,
+      percentage: col.percentage,
+    })),
   };
 }
 
@@ -137,7 +221,7 @@ export async function traceColor(
   let origHeight: number;
 
   if (fileOrData instanceof File) {
-    const loaded = await loadImageData(fileOrData, 1024);
+    const loaded = await loadImageData(fileOrData, options.maxResolution ?? 1024);
     imageData = loaded.imageData;
     origWidth = loaded.origWidth;
     origHeight = loaded.origHeight;
@@ -165,25 +249,25 @@ function quantizeKMeans(
   const pixelCount = imageData.width * imageData.height;
   const pixelAssignments = new Uint8Array(pixelCount);
 
-  // Subsample RGB into flat Uint8Array (3 bytes per sample: R, G, B)
+  // Subsample RGBA into flat Uint8Array (4 bytes per sample: R, G, B, A)
   const targetSamples = 5000;
   const step = Math.max(1, Math.floor(pixelCount / targetSamples));
   const maxSampleCount = Math.ceil(pixelCount / step);
-  const samplesBuffer = new Uint8Array(maxSampleCount * 3);
+  const samplesBuffer = new Uint8Array(maxSampleCount * 4);
   let sampleCount = 0;
 
   for (let i = 0; i < data.length; i += 4 * step) {
     const a = data[i + 3];
     if (a > 30) {
-      const idx = sampleCount * 3;
+      const idx = sampleCount * 4;
       samplesBuffer[idx] = data[i];
       samplesBuffer[idx + 1] = data[i + 1];
       samplesBuffer[idx + 2] = data[i + 2];
+      samplesBuffer[idx + 3] = a;
       sampleCount++;
     }
   }
 
-  console.log('[DEBUG] quantizeKMeans sampleCount:', sampleCount);
   if (sampleCount === 0) {
     pixelAssignments.fill(255);
     return {
@@ -197,33 +281,38 @@ function quantizeKMeans(
   const centroidsR = new Uint8Array(actualK);
   const centroidsG = new Uint8Array(actualK);
   const centroidsB = new Uint8Array(actualK);
+  const centroidsA = new Uint8Array(actualK);
 
   const stepSize = Math.max(1, Math.floor(sampleCount / actualK));
   for (let c = 0; c < actualK; c++) {
-    const sIdx = ((c * stepSize) % sampleCount) * 3;
+    const sIdx = ((c * stepSize) % sampleCount) * 4;
     centroidsR[c] = samplesBuffer[sIdx];
     centroidsG[c] = samplesBuffer[sIdx + 1];
     centroidsB[c] = samplesBuffer[sIdx + 2];
+    centroidsA[c] = samplesBuffer[sIdx + 3];
   }
 
-  // K-Means iterations
+  // K-Means iterations in 4D (RGBA)
   const maxIter = 8;
   const sumR = new Float64Array(actualK);
   const sumG = new Float64Array(actualK);
   const sumB = new Float64Array(actualK);
+  const sumA = new Float64Array(actualK);
   const counts = new Uint32Array(actualK);
 
   for (let iter = 0; iter < maxIter; iter++) {
     sumR.fill(0);
     sumG.fill(0);
     sumB.fill(0);
+    sumA.fill(0);
     counts.fill(0);
 
     for (let i = 0; i < sampleCount; i++) {
-      const sOffset = i * 3;
+      const sOffset = i * 4;
       const sr = samplesBuffer[sOffset];
       const sg = samplesBuffer[sOffset + 1];
       const sb = samplesBuffer[sOffset + 2];
+      const sa = samplesBuffer[sOffset + 3];
 
       let minDist = Infinity;
       let closest = 0;
@@ -232,7 +321,8 @@ function quantizeKMeans(
         const dr = sr - centroidsR[c];
         const dg = sg - centroidsG[c];
         const db = sb - centroidsB[c];
-        const dist = dr * dr + dg * dg + db * db;
+        const da = sa - centroidsA[c];
+        const dist = dr * dr + dg * dg + db * db + da * da;
         if (dist < minDist) {
           minDist = dist;
           closest = c;
@@ -242,6 +332,7 @@ function quantizeKMeans(
       sumR[closest] += sr;
       sumG[closest] += sg;
       sumB[closest] += sb;
+      sumA[closest] += sa;
       counts[closest]++;
     }
 
@@ -251,11 +342,13 @@ function quantizeKMeans(
         const nr = Math.round(sumR[c] / counts[c]);
         const ng = Math.round(sumG[c] / counts[c]);
         const nb = Math.round(sumB[c] / counts[c]);
+        const na = Math.round(sumA[c] / counts[c]);
 
-        if (nr !== centroidsR[c] || ng !== centroidsG[c] || nb !== centroidsB[c]) {
+        if (nr !== centroidsR[c] || ng !== centroidsG[c] || nb !== centroidsB[c] || na !== centroidsA[c]) {
           centroidsR[c] = nr;
           centroidsG[c] = ng;
           centroidsB[c] = nb;
+          centroidsA[c] = na;
           moved = true;
         }
       }
@@ -264,7 +357,10 @@ function quantizeKMeans(
     if (!moved) break;
   }
 
-  // Assign every pixel to nearest centroid
+  // Assign every pixel to nearest centroid using 4D distance
+  const finalSumA = new Float64Array(actualK);
+  const clusterCounts = new Uint32Array(actualK);
+
   for (let i = 0; i < pixelCount; i++) {
     const offset = i * 4;
     const r = data[offset];
@@ -285,22 +381,26 @@ function quantizeKMeans(
       const dr = r - centroidsR[c];
       const dg = g - centroidsG[c];
       const db = b - centroidsB[c];
-      const dist = dr * dr + dg * dg + db * db;
+      const da = a - centroidsA[c];
+      const dist = dr * dr + dg * dg + db * db + da * da;
       if (dist < minDist) {
         minDist = dist;
         closest = c;
       }
     }
     pixelAssignments[i] = closest;
+    finalSumA[closest] += a;
+    clusterCounts[closest]++;
   }
 
   const palette: RGBColor[] = [];
   for (let c = 0; c < actualK; c++) {
+    const avgA = clusterCounts[c] > 0 ? Math.round(finalSumA[c] / clusterCounts[c]) : centroidsA[c];
     palette.push({
       r: centroidsR[c],
       g: centroidsG[c],
       b: centroidsB[c],
-      a: 255
+      a: avgA
     });
   }
 
