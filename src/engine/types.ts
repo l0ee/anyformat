@@ -13,16 +13,17 @@ export interface MonochromeOptions {
   optTolerance?: number; // curve optimization tolerance, default 0.2
   turnPolicy?: TurnPolicy; // default 'minority'
   blackOnWhite?: boolean;
+  strokeWidth?: number; // Optional outline width
   maxResolution?: number; // Max dimension for image scaling, e.g. 1024
 }
 
 export interface ColorTracerOptions {
   numberOfColors?: number; // 2..64, default 8
-  quantization?: 'kmeans' | 'median-cut' | 'octree';
+  quantization?: 'kmeans'; // Color quantization method (default 'kmeans')
   turdSize?: number; // despeckle pixel threshold, default 2
   alphaMax?: number; // corner threshold parameter, default 1.0
   optTolerance?: number; // curve optimization tolerance, default 0.2
-  blurRadius?: number; // Gaussian blur radius before tracing
+  blurRadius?: number; // Box blur radius (0..10) before tracing
   minColorRatio?: number; // Ignore color layers below this area ratio
   strokeWidth?: number; // Optional outline width
   maxResolution?: number; // Max dimension for image scaling, e.g. 1024

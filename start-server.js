@@ -89,7 +89,60 @@ function resolveRequestPath(distDir, requestUrl) {
   return { pathname, filePath: resolved };
 }
 
-function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHeaders = {}) {
+export function selectEncoding(acceptEncodingHeader) {
+  if (!acceptEncodingHeader || typeof acceptEncodingHeader !== 'string') {
+    return null;
+  }
+
+  let brQ = null;
+  let gzipQ = null;
+  let wildcardQ = null;
+
+  const parts = acceptEncodingHeader.split(',');
+  for (const rawPart of parts) {
+    const part = rawPart.trim();
+    if (!part) continue;
+
+    const [encodingPart, ...paramParts] = part.split(';');
+    const encoding = encodingPart.trim().toLowerCase();
+
+    let q = 1.0;
+    for (const param of paramParts) {
+      const trimmed = param.trim();
+      if (trimmed.startsWith('q=')) {
+        const val = parseFloat(trimmed.slice(2));
+        if (!isNaN(val)) {
+          q = Math.max(0, Math.min(1, val));
+        }
+      }
+    }
+
+    if (encoding === 'br') {
+      brQ = q;
+    } else if (encoding === 'gzip') {
+      gzipQ = q;
+    } else if (encoding === '*') {
+      wildcardQ = q;
+    }
+  }
+
+  const effectiveBrQ = brQ !== null ? brQ : (wildcardQ !== null ? wildcardQ : 0);
+  const effectiveGzipQ = gzipQ !== null ? gzipQ : (wildcardQ !== null ? wildcardQ : 0);
+
+  if (effectiveBrQ <= 0 && effectiveGzipQ <= 0) {
+    return null;
+  }
+
+  if (effectiveBrQ >= effectiveGzipQ && effectiveBrQ > 0) {
+    return 'br';
+  } else if (effectiveGzipQ > effectiveBrQ && effectiveGzipQ > 0) {
+    return 'gzip';
+  }
+
+  return null;
+}
+
+export function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHeaders = {}) {
   const extension = path.extname(filePath).toLowerCase();
   const headers = {
     ...securityHeaders(),
@@ -131,22 +184,149 @@ function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHeaders =
     return;
   }
 
-  let body = buffer;
   const acceptEncoding = req.headers['accept-encoding'] || '';
   if (buffer.length > 1024 && COMPRESSIBLE_EXTENSIONS.has(extension)) {
     headers.Vary = 'Accept-Encoding';
-    if (acceptEncoding.includes('br')) {
-      body = zlib.brotliCompressSync(buffer);
-      headers['Content-Encoding'] = 'br';
-    } else if (acceptEncoding.includes('gzip')) {
-      body = zlib.gzipSync(buffer);
-      headers['Content-Encoding'] = 'gzip';
+    const encoding = selectEncoding(acceptEncoding);
+    if (encoding === 'br') {
+      zlib.brotliCompress(buffer, (err, compressed) => {
+        if (err) {
+          headers['Content-Length'] = buffer.length;
+          res.writeHead(statusCode, headers);
+          res.end(req.method === 'HEAD' ? undefined : buffer);
+        } else {
+          headers['Content-Encoding'] = 'br';
+          headers['Content-Length'] = compressed.length;
+          res.writeHead(statusCode, headers);
+          res.end(req.method === 'HEAD' ? undefined : compressed);
+        }
+      });
+      return;
+    } else if (encoding === 'gzip') {
+      zlib.gzip(buffer, (err, compressed) => {
+        if (err) {
+          headers['Content-Length'] = buffer.length;
+          res.writeHead(statusCode, headers);
+          res.end(req.method === 'HEAD' ? undefined : buffer);
+        } else {
+          headers['Content-Encoding'] = 'gzip';
+          headers['Content-Length'] = compressed.length;
+          res.writeHead(statusCode, headers);
+          res.end(req.method === 'HEAD' ? undefined : compressed);
+        }
+      });
+      return;
     }
   }
 
-  headers['Content-Length'] = body.length;
+  headers['Content-Length'] = buffer.length;
   res.writeHead(statusCode, headers);
-  res.end(req.method === 'HEAD' ? undefined : body);
+  res.end(req.method === 'HEAD' ? undefined : buffer);
+}
+
+function serveFile(req, res, filePath, statusCode = 200, extraHeaders = {}) {
+  fs.stat(filePath, (statError, stats) => {
+    if (statError || !stats.isFile()) {
+      res.writeHead(404, securityHeaders());
+      res.end('Not Found');
+      return;
+    }
+
+    const extension = path.extname(filePath).toLowerCase();
+    const headers = {
+      ...securityHeaders(),
+      'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
+      'Cache-Control': cacheControl(filePath),
+      'Accept-Ranges': 'bytes',
+      ...extraHeaders,
+    };
+
+    const range = req.headers.range;
+    if (range) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (!match) {
+        res.writeHead(416, { ...headers, 'Content-Range': `bytes */${stats.size}` });
+        res.end();
+        return;
+      }
+      const requestedStart = match[1] ? Number(match[1]) : null;
+      const requestedEnd = match[2] ? Number(match[2]) : null;
+      const isSuffixRange = requestedStart === null;
+      const start = isSuffixRange
+        ? Math.max(0, stats.size - (requestedEnd ?? 0))
+        : requestedStart;
+      const end = isSuffixRange || requestedEnd === null ? stats.size - 1 : requestedEnd;
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= stats.size) {
+        res.writeHead(416, { ...headers, 'Content-Range': `bytes */${stats.size}` });
+        res.end();
+        return;
+      }
+      const boundedEnd = Math.min(end, stats.size - 1);
+      const contentLength = boundedEnd - start + 1;
+      res.writeHead(206, {
+        ...headers,
+        'Accept-Ranges': 'bytes',
+        'Content-Range': `bytes ${start}-${boundedEnd}/${stats.size}`,
+        'Content-Length': contentLength,
+      });
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+      const stream = fs.createReadStream(filePath, { start, end: boundedEnd });
+      stream.on('error', () => {
+        if (!res.headersSent) res.writeHead(500);
+        res.end();
+      });
+      stream.pipe(res);
+      return;
+    }
+
+    const acceptEncoding = req.headers['accept-encoding'] || '';
+    const shouldCompress = stats.size > 1024 && COMPRESSIBLE_EXTENSIONS.has(extension);
+    const encoding = shouldCompress ? selectEncoding(acceptEncoding) : null;
+
+    if (encoding) {
+      headers.Vary = 'Accept-Encoding';
+      fs.readFile(filePath, (readError, content) => {
+        if (readError) {
+          res.writeHead(500, securityHeaders());
+          res.end('Server Error');
+          return;
+        }
+        const compressFn = encoding === 'br' ? zlib.brotliCompress : zlib.gzip;
+        compressFn(content, (compError, compressed) => {
+          if (compError) {
+            headers['Content-Length'] = content.length;
+            res.writeHead(statusCode, headers);
+            res.end(req.method === 'HEAD' ? undefined : content);
+          } else {
+            headers['Content-Encoding'] = encoding;
+            headers['Content-Length'] = compressed.length;
+            res.writeHead(statusCode, headers);
+            res.end(req.method === 'HEAD' ? undefined : compressed);
+          }
+        });
+      });
+      return;
+    }
+
+    if (COMPRESSIBLE_EXTENSIONS.has(extension)) {
+      headers.Vary = 'Accept-Encoding';
+    }
+    headers['Content-Length'] = stats.size;
+    res.writeHead(statusCode, headers);
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', () => {
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    });
+    stream.pipe(res);
+  });
 }
 
 export function createProductionServer({ distDir = path.join(__dirname, 'dist') } = {}) {
@@ -164,35 +344,30 @@ export function createProductionServer({ distDir = path.join(__dirname, 'dist') 
       return;
     }
 
-    try {
-      fs.readFile(resolved.filePath, (error, content) => {
-        if (!error) {
-          sendBuffer(req, res, resolved.filePath, content);
-          return;
-        }
+    fs.stat(resolved.filePath, (error, stats) => {
+      if (!error && stats.isFile()) {
+        serveFile(req, res, resolved.filePath);
+        return;
+      }
 
-        const isNotFound = error.code === 'ENOENT' || error.code === 'EISDIR';
-        const isClientRoute = isNotFound && !path.extname(resolved.pathname);
-        if (isClientRoute) {
-          const indexPath = path.join(distDir, 'index.html');
-          fs.readFile(indexPath, (indexError, indexContent) => {
-            if (indexError) {
-              res.writeHead(500, securityHeaders());
-              res.end('Unable to load the application');
-            } else {
-              sendBuffer(req, res, indexPath, indexContent);
-            }
-          });
-          return;
-        }
+      const isNotFound = !error || error.code === 'ENOENT' || error.code === 'EISDIR' || !stats.isFile();
+      const isClientRoute = isNotFound && !path.extname(resolved.pathname);
+      if (isClientRoute) {
+        const indexPath = path.join(distDir, 'index.html');
+        fs.stat(indexPath, (indexStatError, indexStats) => {
+          if (indexStatError || !indexStats.isFile()) {
+            res.writeHead(500, securityHeaders());
+            res.end('Unable to load the application');
+          } else {
+            serveFile(req, res, indexPath);
+          }
+        });
+        return;
+      }
 
-        res.writeHead(isNotFound ? 404 : 500, securityHeaders());
-        res.end(isNotFound ? 'Not Found' : 'Server Error');
-      });
-    } catch {
-      res.writeHead(500, securityHeaders());
-      res.end('Server Error');
-    }
+      res.writeHead(isNotFound ? 404 : 500, securityHeaders());
+      res.end(isNotFound ? 'Not Found' : 'Server Error');
+    });
   });
 }
 

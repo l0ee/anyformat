@@ -62,4 +62,53 @@ describe('filterUniversalTasks', () => {
     expect(res).toHaveLength(1);
     expect(res[0].id).toBe('3');
   });
+
+  it('sorts queue items by name and size correctly', () => {
+    const sortItems: UniversalTaskItem[] = [
+      {
+        id: '1',
+        file: { name: 'zebra.png', size: 3000 } as File,
+        name: 'zebra.png',
+        sourceExt: 'png',
+        targetExt: 'webp',
+        status: 'completed',
+        progress: 100,
+      },
+      {
+        id: '2',
+        file: { name: 'apple.png', size: 1000 } as File,
+        name: 'apple.png',
+        sourceExt: 'png',
+        targetExt: 'webp',
+        status: 'idle',
+        progress: 0,
+      },
+      {
+        id: '3',
+        file: { name: 'monkey.png', size: 2000 } as File,
+        name: 'monkey.png',
+        sourceExt: 'png',
+        targetExt: 'webp',
+        status: 'error',
+        progress: 0,
+      },
+    ];
+
+    const byName = filterUniversalTasks(sortItems, {
+      statusFilter: 'all',
+      categoryFilter: 'all',
+      searchQuery: '',
+      sortBy: 'name',
+    });
+    expect(byName.map((i) => i.name)).toEqual(['apple.png', 'monkey.png', 'zebra.png']);
+
+    const bySizeDesc = filterUniversalTasks(sortItems, {
+      statusFilter: 'all',
+      categoryFilter: 'all',
+      searchQuery: '',
+      sortBy: 'size',
+      sortOrder: 'desc',
+    });
+    expect(bySizeDesc.map((i) => i.name)).toEqual(['zebra.png', 'monkey.png', 'apple.png']);
+  });
 });

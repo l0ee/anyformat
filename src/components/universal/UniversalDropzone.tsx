@@ -3,33 +3,55 @@ import { getFileExtension, isSupportedSourceExtension } from '../../engine/unive
 
 interface UniversalDropzoneProps {
   onFilesAdded: (files: File[]) => void;
+  disabled?: boolean;
 }
 
-export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdded }) => {
+export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdded, disabled = false }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState('');
   const inputId = useId();
   const descriptionId = useId();
   const errorId = useId();
 
-  const submitSupportedFiles = (files: File[]) => {
-    const supported = files.filter((file) => {
-      return isSupportedSourceExtension(getFileExtension(file.name));
-    });
-    const rejected = files.filter((file) => !supported.includes(file));
+  const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 
-    setError(
-      rejected.length > 0
-        ? `${rejected.length} unsupported file${rejected.length === 1 ? '' : 's'} rejected: ${rejected.map((file) => file.name).join(', ')}`
-        : ''
-    );
-    if (supported.length > 0) onFilesAdded(supported);
+  const submitSupportedFiles = (files: File[]) => {
+    if (disabled) return;
+    const valid: File[] = [];
+    const unsupportedExt: File[] = [];
+    const oversized: File[] = [];
+
+    files.forEach((file) => {
+      const ext = getFileExtension(file.name);
+      if (!isSupportedSourceExtension(ext)) {
+        unsupportedExt.push(file);
+      } else if (file.size > MAX_FILE_SIZE_BYTES) {
+        oversized.push(file);
+      } else {
+        valid.push(file);
+      }
+    });
+
+    const errorMsgs: string[] = [];
+    if (unsupportedExt.length > 0) {
+      errorMsgs.push(
+        `${unsupportedExt.length} unsupported file${unsupportedExt.length === 1 ? '' : 's'} rejected: ${unsupportedExt.map((f) => f.name).join(', ')}`
+      );
+    }
+    if (oversized.length > 0) {
+      errorMsgs.push(
+        `${oversized.length} file${oversized.length === 1 ? '' : 's'} exceeded the 100 MB limit: ${oversized.map((f) => f.name).join(', ')}`
+      );
+    }
+
+    setError(errorMsgs.join(' '));
+    if (valid.length > 0) onFilesAdded(valid);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    if (!disabled) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -42,12 +64,14 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (disabled) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       submitSupportedFiles(Array.from(e.dataTransfer.files));
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (e.target.files && e.target.files.length > 0) {
       submitSupportedFiles(Array.from(e.target.files));
       e.target.value = '';
@@ -59,6 +83,7 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
       <input
         id={inputId}
         type="file"
+        disabled={disabled}
         onChange={handleInputChange}
         multiple
         accept=".png,.jpg,.jpeg,.webp,.bmp,.svg,.pdf,image/png,image/jpeg,image/webp,image/bmp,image/svg+xml,application/pdf"
@@ -72,17 +97,13 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
         onDrop={handleDrop}
         className={`relative group rounded-[2.5rem] p-4 sm:p-6 transition-all duration-500 motion-reduce:transition-none motion-reduce:transform-none shadow-2xl bg-gradient-to-br from-[#f8ebe2]/90 via-[#fdede6]/80 to-[#f5e4da]/90 dark:from-pink-950/40 dark:via-rose-900/35 dark:to-pink-900/45 border border-[#e8cfc2]/80 dark:border-pink-500/30 backdrop-blur-md overflow-hidden peer-focus-visible:ring-4 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950 ${
           isDragging ? 'scale-[1.02] ring-4 ring-pink-400/80 shadow-pink-400/50' : 'hover:scale-[1.01] hover:shadow-2xl hover:border-pink-300/80'
-        }`}
+        } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
-        <div className="text-center mb-4 relative z-10">
-          <span className="inline-block px-5 py-1.5 rounded-full text-xs sm:text-sm font-extrabold uppercase tracking-widest text-rose-950 dark:text-pink-100 bg-[#fdfaf6]/95 dark:bg-slate-900/80 border border-[#e8cfc2]/70 dark:border-pink-800/50 backdrop-blur-md shadow-md">
-            UNIVERSAL FILE CONVERTER (IMAGE, SVG &amp; PDF)
-          </span>
-        </div>
-
         <label
           htmlFor={inputId}
-          className="relative z-10 block cursor-pointer bg-[#faf5ef]/70 dark:bg-slate-900/40 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-pink-300/80 dark:border-pink-500/40 p-8 sm:p-12 text-center transition-all motion-reduce:transition-none group-hover:border-pink-400 shadow-inner"
+          className={`relative z-10 block ${
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+          } bg-[#faf5ef]/70 dark:bg-slate-900/40 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-pink-300/80 dark:border-pink-500/40 p-8 sm:p-12 text-center transition-all motion-reduce:transition-none group-hover:border-pink-400 shadow-inner`}
         >
           <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-5 rounded-2xl bg-[#fdfaf6]/90 dark:bg-slate-800/70 backdrop-blur-md border border-[#e8cfc2]/80 dark:border-pink-700/50 shadow-md flex items-center justify-center group-hover:scale-110 group-hover:-translate-y-1.5 transition-all duration-300 motion-reduce:transition-none motion-reduce:transform-none">
             <svg
@@ -118,6 +139,10 @@ export const UniversalDropzone: React.FC<UniversalDropzoneProps> = ({ onFilesAdd
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </span>
+
+          <p className="text-xs text-stone-500 dark:text-slate-400 mt-2">
+            Or paste an image with Ctrl+V / ⌘V
+          </p>
         </label>
       </div>
 

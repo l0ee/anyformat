@@ -7,6 +7,7 @@ interface HeaderProps {
   setDarkMode: (val: boolean) => void;
   activeTab: 'single' | 'batch' | 'universal';
   setActiveTab: (tab: 'single' | 'batch' | 'universal') => void;
+  onOpenShortcuts?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -14,6 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
   setDarkMode,
   activeTab,
   setActiveTab,
+  onOpenShortcuts,
 }) => {
   return (
     <header className="sticky top-4 z-50 max-w-6xl mx-auto px-4 font-['Plus_Jakarta_Sans',sans-serif]">
@@ -79,6 +81,20 @@ export const Header: React.FC<HeaderProps> = ({
               Vector Batch
             </button>
           </nav>
+
+          {/* Keyboard shortcuts helper button */}
+          {onOpenShortcuts && (
+            <button
+              onClick={onOpenShortcuts}
+              className="p-2 rounded-full bg-[#eee4d7]/85 dark:bg-slate-800 text-stone-700 dark:text-slate-300 hover:text-stone-950 dark:hover:text-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-sm hover:shadow-md"
+              title="Keyboard shortcuts (Cmd+K or ?)"
+              aria-label="Keyboard shortcuts"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+            </button>
+          )}
 
           {/* Sun/Moon Light-Dark Mode Toggle button */}
           <button

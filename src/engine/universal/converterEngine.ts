@@ -3,6 +3,7 @@ import { optimizeSvg } from '../svgOptimizer';
 import { rasterizeSvgToBlob } from '../svgRasterizer';
 import { convertImageToPdf, convertPdfToImage, convertPdfToSvg, convertSvgToPdf } from '../pdfConverter';
 import { getFileExtension, isSupportedConversion, SUPPORTED_FORMATS } from './types';
+import { MAX_CANVAS_EDGE, MAX_CANVAS_PIXELS } from '../canvasLimits';
 
 /**
  * Universal File Converter Engine
@@ -11,7 +12,8 @@ import { getFileExtension, isSupportedConversion, SUPPORTED_FORMATS } from './ty
 export async function convertUniversalFile(
   file: File,
   targetExt: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  options?: { pageNumber?: number }
 ): Promise<{ blob: Blob; mimeType: string; filename: string }> {
   const baseName = file.name.replace(/\.[^/.]+$/, '');
   const sourceExt = getFileExtension(file.name);
@@ -46,17 +48,19 @@ export async function convertUniversalFile(
     onProgress?.(50);
     let blob: Blob;
     let mimeType: string;
+    const pageNum = options?.pageNumber && options.pageNumber > 0 ? options.pageNumber : 1;
 
     if (targetLower === 'svg') {
-      blob = await convertPdfToSvg(file);
+      blob = await convertPdfToSvg(file, pageNum);
       mimeType = 'image/svg+xml';
     } else {
-      blob = await convertPdfToImage(file, targetLower);
+      blob = await convertPdfToImage(file, targetLower, pageNum);
       mimeType = targetLower === 'jpg' || targetLower === 'jpeg' ? 'image/jpeg' : `image/${targetLower}`;
     }
 
     onProgress?.(100);
-    return { blob, mimeType, filename: `${baseName}.${targetLower}` };
+    const outName = pageNum > 1 ? `${baseName}_p${pageNum}.${targetLower}` : `${baseName}.${targetLower}`;
+    return { blob, mimeType, filename: outName };
   }
 
   // 3. Convert SVG input to raster (PNG / JPG / WEBP).
@@ -73,7 +77,7 @@ export async function convertUniversalFile(
     onProgress?.(40);
     const traceResult = await traceWorkerClient.traceColor(file, {
       numberOfColors: 8,
-      quantization: 'median-cut',
+      quantization: 'kmeans',
       turdSize: 2,
       alphaMax: 1.0,
       blurRadius: 0,
@@ -120,9 +124,32 @@ function convertRasterViaCanvas(file: File, targetExt: string): Promise<Blob> {
 
     img.onload = () => {
       URL.revokeObjectURL(url);
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+
+      // Clamp output to browser canvas edge limit and pixel budget
+      if (
+        width > MAX_CANVAS_EDGE ||
+        height > MAX_CANVAS_EDGE ||
+        width * height > MAX_CANVAS_PIXELS
+      ) {
+        const scaleEdge = Math.min(MAX_CANVAS_EDGE / width, MAX_CANVAS_EDGE / height, 1);
+        let w = width * scaleEdge;
+        let h = height * scaleEdge;
+        if (w * h > MAX_CANVAS_PIXELS) {
+          const scalePixel = Math.sqrt(MAX_CANVAS_PIXELS / (w * h));
+          w *= scalePixel;
+          h *= scalePixel;
+        }
+        width = Math.max(1, Math.round(w));
+        height = Math.max(1, Math.round(h));
+        if (width > MAX_CANVAS_EDGE) width = MAX_CANVAS_EDGE;
+        if (height > MAX_CANVAS_EDGE) height = MAX_CANVAS_EDGE;
+      }
+
       const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
+      canvas.width = width;
+      canvas.height = height;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) {
@@ -131,23 +158,29 @@ function convertRasterViaCanvas(file: File, targetExt: string): Promise<Blob> {
       }
 
       // Fill white background for JPEG if the source has transparency.
-      if (targetExt === 'jpg' || targetExt === 'jpeg') {
+      if (targetExt === 'jpg' || targetExt === 'jpeg' || targetExt === 'bmp') {
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, width, height);
 
       const mimeType = targetExt === 'jpg' || targetExt === 'jpeg' ? 'image/jpeg' : `image/${targetExt}`;
       const quality = targetExt === 'jpg' || targetExt === 'jpeg' || targetExt === 'webp' ? 0.92 : undefined;
 
       canvas.toBlob(
         (blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
+          if (!blob) {
             reject(new Error(`Failed to convert image to ${targetExt}`));
+            return;
           }
+          if (blob.type !== mimeType) {
+            reject(
+              new Error(`Browser returned ${blob.type} instead of requested ${mimeType}. WebP or requested format encoding may not be supported.`)
+            );
+            return;
+          }
+          resolve(blob);
         },
         mimeType,
         quality

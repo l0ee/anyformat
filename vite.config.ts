@@ -23,5 +23,25 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes('node_modules/pdfjs-dist')) {
+              return 'vendor-pdfjs';
+            }
+            if (id.includes('node_modules/pdf-lib')) {
+              return 'vendor-pdflib';
+            }
+            if (id.includes('node_modules/jszip')) {
+              return 'vendor-jszip';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+          },
+        },
+      },
+    },
   };
 });

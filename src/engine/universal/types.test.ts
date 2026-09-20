@@ -61,4 +61,13 @@ describe('universal format support', () => {
     expect(targets).toContain('pdf');
     expect(targets).not.toContain('ico');
   });
+
+  it('does not treat Object.prototype properties as supported extensions', () => {
+    expect(isSupportedSourceExtension('constructor')).toBe(false);
+    expect(isSupportedSourceExtension('toString')).toBe(false);
+    expect(isSupportedSourceExtension('valueOf')).toBe(false);
+    expect(isSupportedConversion('constructor', 'png')).toBe(false);
+    expect(isSupportedConversion('png', 'constructor')).toBe(false);
+    expect(getCommonExportTargets(['constructor'])).toEqual([]);
+  });
 });

@@ -65,25 +65,34 @@ export function getFileExtension(filename: string): string {
 }
 
 export function isSupportedSourceExtension(extension: string): boolean {
-  return Boolean(SUPPORTED_FORMATS[extension.toLowerCase()]);
+  if (!extension) return false;
+  const key = extension.toLowerCase();
+  return Object.prototype.hasOwnProperty.call(SUPPORTED_FORMATS, key);
 }
 
 export function isSupportedConversion(sourceExtension: string, targetExtension: string): boolean {
-  return Boolean(
-    SUPPORTED_FORMATS[sourceExtension.toLowerCase()]?.canExportTo.includes(targetExtension.toLowerCase()),
-  );
+  if (!sourceExtension || !targetExtension) return false;
+  const sKey = sourceExtension.toLowerCase();
+  const tKey = targetExtension.toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(SUPPORTED_FORMATS, sKey)) return false;
+  return Boolean(SUPPORTED_FORMATS[sKey]?.canExportTo.includes(tKey));
 }
 
 export function getCommonExportTargets(sourceExtensions: string[]): string[] {
   if (sourceExtensions.length === 0) return [];
 
-  const first = SUPPORTED_FORMATS[sourceExtensions[0].toLowerCase()];
-  if (!first) return [];
+  const firstKey = sourceExtensions[0].toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(SUPPORTED_FORMATS, firstKey)) return [];
+  const first = SUPPORTED_FORMATS[firstKey];
 
   return first.canExportTo.filter((target) =>
-    sourceExtensions.every((extension) =>
-      SUPPORTED_FORMATS[extension.toLowerCase()]?.canExportTo.includes(target)
-    )
+    sourceExtensions.every((extension) => {
+      const extKey = extension.toLowerCase();
+      return (
+        Object.prototype.hasOwnProperty.call(SUPPORTED_FORMATS, extKey) &&
+        SUPPORTED_FORMATS[extKey]?.canExportTo.includes(target)
+      );
+    })
   );
 }
 
@@ -100,4 +109,6 @@ export interface UniversalTaskItem {
   resultUrl?: string;
   resultSize?: number;
   error?: string;
+  pageNumber?: number;
+  pageCount?: number;
 }

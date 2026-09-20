@@ -5,6 +5,7 @@ import { PresetType } from '../engine/types';
 interface PresetSelectorProps {
   selectedPreset: PresetType;
   onSelectPreset: (preset: PresetType) => void;
+  disabled?: boolean;
 }
 
 const PRESETS: { id: PresetType; label: string; desc: string; icon: LucideIcon }[] = [
@@ -31,9 +32,10 @@ const PRESETS: { id: PresetType; label: string; desc: string; icon: LucideIcon }
 export const PresetSelector: React.FC<PresetSelectorProps> = ({
   selectedPreset,
   onSelectPreset,
+  disabled = false,
 }) => {
   return (
-    <fieldset className="space-y-3 font-['Plus_Jakarta_Sans',sans-serif]">
+    <fieldset disabled={disabled} className={`space-y-3 font-['Plus_Jakarta_Sans',sans-serif] ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
       <legend className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400">
         Preset Workflows
       </legend>
@@ -48,6 +50,7 @@ export const PresetSelector: React.FC<PresetSelectorProps> = ({
                 name="vector-preset"
                 value={p.id}
                 checked={active}
+                disabled={disabled}
                 onChange={() => onSelectPreset(p.id)}
                 className="peer sr-only"
               />
