@@ -28,6 +28,16 @@ async function pasteFiles(page: Page, files: ClipboardFile[]): Promise<boolean> 
       cancelable: true,
       clipboardData,
     });
+    try {
+      Object.defineProperty(pasteEvent, 'clipboardData', {
+        value: clipboardData,
+        configurable: true,
+        enumerable: true,
+        writable: false,
+      });
+    } catch {
+      // Ignore if non-configurable
+    }
     (document.activeElement ?? document.body).dispatchEvent(pasteEvent);
     return pasteEvent.defaultPrevented;
   }, files);
@@ -51,12 +61,12 @@ test('pastes supported clipboard images into the active vectorizer, batch, and u
   await page.goto('/');
   await expect(page.getByText('Or paste an image with Ctrl+V / ⌘V')).toBeVisible();
 
-  expect(await pasteFiles(page, [{ name: '', mimeType: 'image/png' }])).toBe(true);
+  await expect.poll(() => pasteFiles(page, [{ name: '', mimeType: 'image/png' }])).toBe(true);
   await expect(page.getByRole('img', { name: 'Preview of pasted-image.png' })).toBeVisible();
 
   await page.getByRole('button', { name: /Vector Batch|SVG Batch/i }).click();
   await expect(page.getByText('Or paste an image with Ctrl+V / ⌘V')).toBeVisible();
-  expect(await pasteFiles(page, [
+  await expect.poll(() => pasteFiles(page, [
     { name: '', mimeType: 'image/png' },
     { name: '', mimeType: 'image/png' },
   ])).toBe(true);
@@ -66,10 +76,10 @@ test('pastes supported clipboard images into the active vectorizer, batch, and u
 
   await page.getByRole('button', { name: 'Format Converter' }).click();
   await expect(page.getByText('Or paste an image with Ctrl+V / ⌘V')).toBeVisible();
-  expect(await pasteFiles(page, [{ name: '', mimeType: 'image/png' }])).toBe(true);
+  await expect.poll(() => pasteFiles(page, [{ name: '', mimeType: 'image/png' }])).toBe(true);
   await expect(page.getByRole('heading', { name: 'Format conversion queue (1)' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'pasted-image.png' })).toBeVisible();
-  expect(await pasteFiles(page, [{ name: 'mismatch.svg', mimeType: 'image/png' }])).toBe(true);
+  await expect.poll(() => pasteFiles(page, [{ name: 'mismatch.svg', mimeType: 'image/png' }])).toBe(true);
   await expect(page.getByRole('heading', { name: 'Format conversion queue (2)' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'mismatch.png' })).toBeVisible();
 
