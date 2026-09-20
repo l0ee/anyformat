@@ -1,4 +1,5 @@
 import React from 'react';
+import { VectorBackground } from './VectorBackground';
 
 interface HeroHeaderProps {
   activeTab?: 'single' | 'batch' | 'universal';
@@ -13,18 +14,8 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({ activeTab = 'single' }) 
 
   return (
     <section className="relative" aria-labelledby="page-heading">
-      {/* Animated Video Background - Clean & Sharp Motion */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="metadata"
-        aria-hidden="true"
-        className="fixed inset-0 w-full h-full object-cover z-0 pointer-events-none opacity-50 dark:opacity-40 transition-opacity"
-      >
-        <source src={`${import.meta.env.BASE_URL}background.mp4`} type="video/mp4" />
-      </video>
+      {/* Dynamic Vector Constellation & Curves Background */}
+      <VectorBackground />
 
       {/* Hero Header Content */}
       <div className="relative z-10 max-w-4xl mx-auto text-center space-y-4 my-6">
