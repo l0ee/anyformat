@@ -46,6 +46,17 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Mode switcher pills */}
           <nav aria-label="Conversion modes" className="mode-switcher bg-[#eee4d7]/85 dark:bg-slate-800 p-1 rounded-full flex items-center text-sm font-semibold">
             <button
+              onClick={() => setActiveTab('universal')}
+              aria-pressed={activeTab === 'universal'}
+              className={`px-4 py-2 rounded-full transition-all ${
+                activeTab === 'universal'
+                  ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-sm font-bold'
+                  : 'text-stone-700 dark:text-slate-400 hover:text-stone-950 dark:hover:text-white'
+              }`}
+            >
+              Format Converter
+            </button>
+            <button
               onClick={() => setActiveTab('single')}
               aria-pressed={activeTab === 'single'}
               className={`px-4 py-2 rounded-full transition-all ${
@@ -54,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-stone-700 dark:text-slate-400 hover:text-stone-950 dark:hover:text-white'
               }`}
             >
-              SVG Vectorizer
+              Vector Studio
             </button>
             <button
               onClick={() => setActiveTab('batch')}
@@ -65,18 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-stone-700 dark:text-slate-400 hover:text-stone-950 dark:hover:text-white'
               }`}
             >
-              SVG Batch
-            </button>
-            <button
-              onClick={() => setActiveTab('universal')}
-              aria-pressed={activeTab === 'universal'}
-              className={`px-4 py-2 rounded-full transition-all ${
-                activeTab === 'universal'
-                  ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-sm font-extrabold'
-                  : 'text-pink-700 dark:text-pink-400 hover:text-pink-800 font-bold'
-              }`}
-            >
-              Format Converter
+              Vector Batch
             </button>
           </nav>
 

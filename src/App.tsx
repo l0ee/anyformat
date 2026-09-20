@@ -12,6 +12,7 @@ import { BatchQueue } from './components/BatchQueue';
 import { Footer } from './components/Footer';
 import { UniversalDropzone } from './components/universal/UniversalDropzone';
 import { UniversalQueue } from './components/universal/UniversalQueue';
+import { ShieldCheck, Cpu, Layers } from 'lucide-react';
 
 import { convertUniversalFile } from './engine/universal/converterEngine';
 import { getFileExtension, isSupportedSourceExtension, SUPPORTED_FORMATS, UniversalTaskItem } from './engine/universal/types';
@@ -54,7 +55,7 @@ export const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState<boolean>(
     () => localStorage.getItem('theme') !== 'light'
   );
-  const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'universal'>('single');
+  const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'universal'>('universal');
   const [toast, setToast] = useState<Toast | null>(null);
 
   // Universal File Converter state
@@ -749,7 +750,7 @@ export const App: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <UniversalDropzone onFilesAdded={handleUniversalFilesAdded} />
 
             {universalItems.length > 0 && (
@@ -762,9 +763,51 @@ export const App: React.FC = () => {
                 onStartConversion={startUniversalConversion}
                 onDownloadItem={downloadUniversalItem}
                 onExportZip={exportUniversalZip}
+                onOpenInStudio={(task) => {
+                  handleSingleFileSelect([task.file]);
+                  setActiveTab('single');
+                }}
                 isProcessing={isUniversalProcessing}
               />
             )}
+
+            <section aria-label="Converter Features" className="grid grid-cols-1 gap-5 pt-2 md:grid-cols-3">
+              <div className="app-panel rounded-2xl p-6 transition-all">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
+                  Client-Side Privacy
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
+                  All conversions run locally in your browser sandbox using WebAssembly and HTML5 Canvas. Your documents and images are never uploaded to any remote server.
+                </p>
+              </div>
+
+              <div className="app-panel rounded-2xl p-6 transition-all">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                  <Cpu className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
+                  Multi-Threaded Performance
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
+                  Dedicated Web Workers handle intensive image quantization, rasterization, and document processing off the main thread to keep UI interaction smooth.
+                </p>
+              </div>
+
+              <div className="app-panel rounded-2xl p-6 transition-all">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+                  <Layers className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
+                  Vector Studio Integration
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
+                  Seamlessly jump from batch conversion into the integrated Vector Studio to fine-tune bezier curves, adjust color palettes, and inspect clean SVG markup.
+                </p>
+              </div>
+            </section>
           </div>
         )}
       </main>
