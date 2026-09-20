@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useId, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useId, useEffect } from 'react';
 
 interface ComparisonSliderProps {
   originalUrl: string;
@@ -34,9 +34,20 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
     }
   };
 
-  const svgDataUrl = useMemo(() => {
-    if (!svgContent) return '';
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent)}`;
+  const [svgUrl, setSvgUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (!svgContent) {
+      setSvgUrl('');
+      return;
+    }
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    setSvgUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
   }, [svgContent]);
 
   const roundedPosition = Math.round(sliderPosition);
@@ -68,9 +79,9 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
         className="absolute inset-0 flex items-center justify-center p-4 overflow-hidden pointer-events-none"
         style={{ clipPath: `polygon(${sliderPosition}% 0, 100% 0, 100% 100%, ${sliderPosition}% 100%)` }}
       >
-        {svgDataUrl && (
+        {svgUrl && (
           <img
-            src={svgDataUrl}
+            src={svgUrl}
             alt="Vector SVG preview"
             className="max-w-full max-h-full object-contain pointer-events-none"
           />

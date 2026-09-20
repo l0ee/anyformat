@@ -127,3 +127,33 @@ test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async 
   await expect(page.getByText(`${paths.length} completed of ${paths.length}`)).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /^Download / })).toHaveCount(paths.length);
 });
+
+test('triggers conversion with Ctrl+Enter and renders Copy SVG button with size reduction badge', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Format Converter' }).click();
+
+  const fixtures = await canvasFiles(page);
+  const pngFixture = fixtures.find((f) => f.name === 'sample.png')!;
+
+  await page.locator('input[type="file"]').setInputFiles([pngFixture]);
+  await expect(page.getByRole('heading', { name: 'Convert file' })).toBeVisible();
+
+  // Select SVG target format
+  await page.getByLabel('Output for sample.png').selectOption('svg');
+
+  // Blur dropdown to ensure hotkey isn't consumed by select element
+  await page.keyboard.press('Escape');
+
+  // Trigger conversion via Ctrl+Enter shortcut
+  await page.keyboard.press('Control+Enter');
+
+  // Wait for conversion completion
+  await expect(page.getByText(/Conversion complete · File ready for download/)).toBeVisible({ timeout: 20_000 });
+
+  // Verify Copy SVG button is present in both row actions and CTA
+  const copyButtons = page.getByRole('button', { name: /Copy .*SVG/i });
+  await expect(copyButtons.first()).toBeVisible();
+
+  // Verify Download button
+  await expect(page.getByRole('button', { name: /Download sample\.svg/i }).first()).toBeVisible();
+});

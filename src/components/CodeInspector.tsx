@@ -9,6 +9,7 @@ interface CodeInspectorProps {
   onDownloadPng: (scale: number) => void;
   onDownloadWebp: (scale: number) => void;
   isExporting?: boolean;
+  isProcessing?: boolean;
 }
 
 export const CodeInspector: React.FC<CodeInspectorProps> = ({
@@ -19,6 +20,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
   onDownloadPng,
   onDownloadWebp,
   isExporting = false,
+  isProcessing = false,
 }) => {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [exportFormat, setExportFormat] = useState<'svg' | 'png' | 'webp'>('svg');
@@ -51,7 +53,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
           <button
             type="button"
             onClick={handleCopy}
-            disabled={!svgContent}
+            disabled={!svgContent || isProcessing}
             className="min-h-11 px-4 py-1.5 text-xs font-serif uppercase tracking-wider rounded-full border border-stone-300 dark:border-slate-700 bg-[#faf5ef] dark:bg-slate-800 text-stone-700 dark:text-slate-200 hover:bg-[#f3ebe1] dark:hover:bg-slate-700 transition-colors motion-reduce:transition-none flex items-center space-x-1 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >
             {copyStatus === 'success' ? (
@@ -84,7 +86,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                 setExportFormat('svg');
                 onDownloadSvg();
               }}
-              disabled={isExporting || !svgContent}
+              disabled={isExporting || isProcessing || !svgContent}
               className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                 exportFormat === 'svg'
                   ? 'bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/60 font-semibold'
@@ -100,7 +102,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                 setExportFormat('png');
                 onDownloadPng(rasterScale);
               }}
-              disabled={isExporting || !svgContent}
+              disabled={isExporting || isProcessing || !svgContent}
               className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                 exportFormat === 'png'
                   ? 'bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/60 font-semibold'
@@ -116,7 +118,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                 setExportFormat('webp');
                 onDownloadWebp(rasterScale);
               }}
-              disabled={isExporting || !svgContent}
+              disabled={isExporting || isProcessing || !svgContent}
               className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                 exportFormat === 'webp'
                   ? 'bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/60 font-semibold'
@@ -133,7 +135,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                     key={s}
                     type="button"
                     onClick={() => setRasterScale(s)}
-                    disabled={isExporting}
+                    disabled={isExporting || isProcessing}
                     aria-pressed={rasterScale === s}
                     className={`min-w-10 min-h-10 px-2 py-0.5 text-[10px] font-mono rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                       rasterScale === s ? 'bg-sky-500 text-white font-bold' : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'

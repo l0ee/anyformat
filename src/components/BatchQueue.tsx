@@ -6,7 +6,7 @@ interface BatchQueueProps {
   items: BatchItem[];
   onRemoveItem: (id: string) => void;
   onClearQueue: () => void;
-  onStartBatch: () => void;
+  onStartBatch: (targetIds?: string[]) => void;
   onExportZip: () => void;
   isProcessing: boolean;
 }
@@ -17,6 +17,7 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
   const statusId = useId();
   const completedCount = items.filter((item) => item.status === 'completed').length;
   const errorCount = items.filter((item) => item.status === 'error').length;
+  const hasIdle = items.some((item) => item.status === 'idle');
   const isFinished = items.length > 0 && completedCount + errorCount === items.length;
 
   return (
@@ -34,9 +35,21 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
             <button type="button" onClick={onExportZip} className="min-h-11 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors motion-reduce:transition-none hover:from-rose-700 hover:to-pink-700">Export {completedCount} as ZIP</button>
           )}
           {(!isFinished || errorCount > 0) && (
-            <button type="button" onClick={onStartBatch} disabled={isProcessing || !items.length} className="flex min-h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors motion-reduce:transition-none hover:from-rose-700 hover:to-pink-700 disabled:opacity-50">
+            <button
+              type="button"
+              onClick={() => {
+                if (!hasIdle && errorCount > 0) {
+                  const failedIds = items.filter((item) => item.status === 'error').map((item) => item.id);
+                  onStartBatch(failedIds);
+                } else {
+                  onStartBatch();
+                }
+              }}
+              disabled={isProcessing || !items.length}
+              className="flex min-h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors motion-reduce:transition-none hover:from-rose-700 hover:to-pink-700 disabled:opacity-50"
+            >
               {isProcessing && <svg className="h-4 w-4 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-              {isProcessing ? 'Processing…' : errorCount > 0 ? 'Retry failed files' : 'Process batch'}
+              {isProcessing ? 'Processing…' : (!hasIdle && errorCount > 0) ? 'Retry failed files' : 'Process batch'}
             </button>
           )}
         </div>

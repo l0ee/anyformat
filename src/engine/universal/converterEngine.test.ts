@@ -77,7 +77,7 @@ describe('converterEngine with PDF support', () => {
     const file = new File(['pdf_data'], 'doc.pdf', { type: 'application/pdf' });
     const result = await convertUniversalFile(file, 'png');
 
-    expect(convertPdfToImage).toHaveBeenCalledWith(file, 'png');
+    expect(convertPdfToImage).toHaveBeenCalledWith(file, 'png', 1);
     expect(result.mimeType).toBe('image/png');
     expect(result.filename).toBe('doc.png');
   });
@@ -86,9 +86,18 @@ describe('converterEngine with PDF support', () => {
     const file = new File(['pdf_data'], 'doc.pdf', { type: 'application/pdf' });
     const result = await convertUniversalFile(file, 'svg');
 
-    expect(convertPdfToSvg).toHaveBeenCalledWith(file);
+    expect(convertPdfToSvg).toHaveBeenCalledWith(file, 1);
     expect(result.mimeType).toBe('image/svg+xml');
     expect(result.filename).toBe('doc.svg');
+  });
+
+  it('dispatches PDF source conversion with selected page number', async () => {
+    const file = new File(['pdf_data'], 'doc.pdf', { type: 'application/pdf' });
+    const result = await convertUniversalFile(file, 'png', undefined, { pageNumber: 3 });
+
+    expect(convertPdfToImage).toHaveBeenCalledWith(file, 'png', 3);
+    expect(result.mimeType).toBe('image/png');
+    expect(result.filename).toBe('doc_p3.png');
   });
 
   it('dispatches raster source conversion to PDF (png -> pdf)', async () => {
@@ -107,5 +116,76 @@ describe('converterEngine with PDF support', () => {
     expect(convertSvgToPdf).toHaveBeenCalledWith('<svg></svg>');
     expect(result.mimeType).toBe('application/pdf');
     expect(result.filename).toBe('vector.pdf');
+  });
+
+  it('clamps huge raster image dimensions to canvas limits during raster-to-raster conversion', async () => {
+    let allocatedWidth = 0;
+    let allocatedHeight = 0;
+
+    const mockCanvas = {
+      set width(val: number) { allocatedWidth = val; },
+      get width() { return allocatedWidth; },
+      set height(val: number) { allocatedHeight = val; },
+      get height() { return allocatedHeight; },
+      getContext: () => ({
+        fillStyle: '',
+        fillRect: vi.fn(),
+        drawImage: vi.fn(),
+      }),
+      toBlob: (callback: (blob: Blob | null) => void, mimeType?: string) => {
+        callback(new Blob(['data'], { type: mimeType || 'image/png' }));
+      },
+    };
+
+    vi.stubGlobal('document', {
+      createElement: (tagName: string) => {
+        if (tagName === 'canvas') return mockCanvas;
+        return {};
+      },
+    });
+
+    vi.stubGlobal('Image', class {
+      onload: () => void = () => {};
+      naturalWidth = 16384;
+      naturalHeight = 8192;
+      width = 16384;
+      height = 8192;
+      set src(_val: string) {
+        setTimeout(() => this.onload(), 0);
+      }
+    });
+
+    const file = new File(['huge'], 'huge.png', { type: 'image/png' });
+    await convertUniversalFile(file, 'jpg');
+
+    expect(allocatedWidth).toBeLessThanOrEqual(8192);
+    expect(allocatedHeight).toBeLessThanOrEqual(8192);
+    expect(allocatedWidth * allocatedHeight).toBeLessThanOrEqual(16777216);
+  });
+
+  it('rejects conversion when the browser returns a mismatched MIME type (e.g. unsupported WebP)', async () => {
+    const mockCanvas = {
+      width: 100,
+      height: 100,
+      getContext: () => ({
+        fillStyle: '',
+        fillRect: vi.fn(),
+        drawImage: vi.fn(),
+      }),
+      toBlob: (callback: (blob: Blob | null) => void) => {
+        // Browser does not support WebP, falls back to image/png
+        callback(new Blob(['png_fallback'], { type: 'image/png' }));
+      },
+    };
+
+    vi.stubGlobal('document', {
+      createElement: (tagName: string) => {
+        if (tagName === 'canvas') return mockCanvas;
+        return {};
+      },
+    });
+
+    const file = new File(['data'], 'test.png', { type: 'image/png' });
+    await expect(convertUniversalFile(file, 'webp')).rejects.toThrow(/Browser returned image\/png instead of requested image\/webp/);
   });
 });

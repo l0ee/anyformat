@@ -8,6 +8,7 @@ interface ControlPanelProps {
   setMonoOpts: React.Dispatch<React.SetStateAction<MonochromeOptions>>;
   colorOpts: ColorTracerOptions;
   setColorOpts: React.Dispatch<React.SetStateAction<ColorTracerOptions>>;
+  disabled?: boolean;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -17,13 +18,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   setMonoOpts,
   colorOpts,
   setColorOpts,
+  disabled = false,
 }) => {
   const idPrefix = useId();
   const controlId = (name: string) => `${idPrefix}-${name}`;
   const focusClasses = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900';
 
   return (
-    <div className="app-panel text-stone-900 dark:text-white rounded-2xl p-6 space-y-5 font-['Plus_Jakarta_Sans',sans-serif]">
+    <fieldset disabled={disabled} className={`app-panel text-stone-900 dark:text-white rounded-2xl p-6 space-y-5 font-['Plus_Jakarta_Sans',sans-serif] ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Mode Switcher */}
       <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-4">
         <span className="text-sm font-semibold uppercase tracking-wider text-stone-700 dark:text-slate-300">TRACING MODE</span>
@@ -265,6 +267,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         </div>
       )}
-    </div>
+    </fieldset>
   );
 };

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { createProductionServer } from '../start-server.js';
+import { createProductionServer, selectEncoding } from '../start-server.js';
 
 let directory;
 let server;
@@ -95,5 +95,31 @@ describe('production server', () => {
     expect(traversal.status).toBe(400);
     expect(post.status).toBe(405);
     expect(post.headers.get('allow')).toBe('GET, HEAD');
+  });
+
+  it('selects encoding respecting RFC 9110 quality values', () => {
+    expect(selectEncoding('br;q=0, gzip;q=1')).toBe('gzip');
+    expect(selectEncoding('br;q=0.5, gzip;q=1')).toBe('gzip');
+    expect(selectEncoding('br;q=1, gzip;q=0.8')).toBe('br');
+    expect(selectEncoding('gzip, deflate, br')).toBe('br');
+    expect(selectEncoding('br;q=0, gzip;q=0')).toBeNull();
+    expect(selectEncoding('identity')).toBeNull();
+    expect(selectEncoding('*;q=0.5')).toBe('br');
+    expect(selectEncoding('*;q=0')).toBeNull();
+    expect(selectEncoding('')).toBeNull();
+  });
+
+  it('server respects quality values when negotiating compression', async () => {
+    const gzipResponse = await fetch(`${origin}/assets/index-AbCd1234.js`, {
+      headers: { 'Accept-Encoding': 'br;q=0, gzip;q=1' },
+    });
+    expect(gzipResponse.headers.get('content-encoding')).toBe('gzip');
+    expect(await gzipResponse.text()).toContain('compressible');
+
+    const noneResponse = await fetch(`${origin}/assets/index-AbCd1234.js`, {
+      headers: { 'Accept-Encoding': 'br;q=0, gzip;q=0' },
+    });
+    expect(noneResponse.headers.get('content-encoding')).toBeNull();
+    expect(await noneResponse.text()).toContain('compressible');
   });
 });

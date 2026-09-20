@@ -57,8 +57,30 @@ export const Footer: React.FC = () => {
           </section>
         </div>
 
-        <div className="pt-6 border-t border-stone-200/80 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-500 dark:text-slate-500">
+        <div className="pt-6 border-t border-stone-200/80 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-stone-500 dark:text-slate-500">
           <p>&copy; {new Date().getFullYear()} l0ee.</p>
+
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-300/80 bg-[#faf5ef]/90 px-3 py-1 text-xs font-semibold text-stone-800 shadow-xs backdrop-blur-md transition-all hover:border-stone-400 dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-200 dark:hover:border-slate-700">
+              <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span>Zero Server Uploads</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-300/80 bg-[#faf5ef]/90 px-3 py-1 text-xs font-semibold text-stone-800 shadow-xs backdrop-blur-md transition-all hover:border-stone-400 dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-200 dark:hover:border-slate-700">
+              <svg className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>100% In-Browser</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-300/80 bg-[#faf5ef]/90 px-3 py-1 text-xs font-semibold text-stone-800 shadow-xs backdrop-blur-md transition-all hover:border-stone-400 dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-200 dark:hover:border-slate-700">
+              <svg className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              <span>Vector Studio Integrated</span>
+            </span>
+          </div>
+
           <p>
             MIT licensed.{' '}
             <a

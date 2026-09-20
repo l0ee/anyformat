@@ -432,6 +432,48 @@ describe('TraceWorkerClient', () => {
     expect(internals.pendingQueue).toHaveLength(0);
   });
 
+  it('removes dead worker from pool and disables workers when replacement fails', async () => {
+    const client = new TraceWorkerClient();
+    const worker = createWorker();
+    configureWorkers(client, [worker]);
+    const internals = client as unknown as ClientInternals;
+
+    vi.stubGlobal('Worker', vi.fn(() => {
+      throw new Error('Worker creation failed');
+    }));
+
+    const taskPromise = client.traceMonochrome(createImageData());
+    worker.onerror?.({ message: 'Crash' } as ErrorEvent);
+
+    await expect(taskPromise).resolves.toBeDefined();
+    expect(internals.workers).toHaveLength(0);
+    expect(internals.isWorkerSupported).toBe(false);
+  });
+
+  it('rejects decompression bomb images whose dimensions exceed safe limits', async () => {
+    vi.stubGlobal('Image', class {
+      src = '';
+      onload = null;
+      onerror = null;
+      removeAttribute = vi.fn();
+    });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:bomb');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+    const client = new TraceWorkerClient();
+    const buffer = new Uint8Array(32);
+    const view = new DataView(buffer.buffer);
+    view.setUint32(0, 0x89504e47);
+    view.setUint32(4, 0x0d0a1a0a);
+    view.setUint32(8, 13);
+    view.setUint32(12, 0x49484452);
+    view.setUint32(16, 20000);
+    view.setUint32(20, 20000);
+
+    const file = new File([buffer], 'bomb.png', { type: 'image/png' });
+    await expect(client.traceMonochrome(file)).rejects.toThrow(/exceed maximum allowable size/);
+  });
+
   it('falls back directly when workers are unavailable', async () => {
     const client = new TraceWorkerClient();
     const internals = client as unknown as ClientInternals;
@@ -442,6 +484,62 @@ describe('TraceWorkerClient', () => {
     expect(result.width).toBe(20);
     expect(result.height).toBe(20);
     expect(result.svg).toContain('width="20" height="20"');
+  });
+
+  it('preserves original unscaled image dimensions when downsampling a File', async () => {
+    const client = new TraceWorkerClient();
+    const worker = createWorker();
+    configureWorkers(client, [worker]);
+
+    const fakeImage = {
+      naturalWidth: 200,
+      naturalHeight: 100,
+      width: 200,
+      height: 100,
+      src: '',
+      onload: null as (() => void) | null,
+      onerror: null,
+      removeAttribute: vi.fn()
+    };
+
+    vi.stubGlobal('Image', class {
+      constructor() {
+        setTimeout(() => fakeImage.onload?.(), 0);
+        return fakeImage;
+      }
+    });
+
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+    const mockCtx = {
+      drawImage: vi.fn(),
+      getImageData: vi.fn(() => createImageData(100, 50))
+    };
+    const mockCanvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => mockCtx)
+    };
+    vi.stubGlobal('document', {
+      createElement: vi.fn((tag: string) => {
+        if (tag === 'canvas') return mockCanvas;
+        return {};
+      })
+    });
+
+    const file = new File(['mock'], 'test.png', { type: 'image/png' });
+    client.traceMonochrome(file, { maxResolution: 100 });
+
+    await vi.waitFor(() => {
+      expect(worker.postMessage).toHaveBeenCalled();
+    });
+
+    const task = firstTaskFor(worker);
+    expect(task.origWidth).toBe(200);
+    expect(task.origHeight).toBe(100);
+    expect(task.imageData.width).toBe(100);
+    expect(task.imageData.height).toBe(50);
   });
 });
 

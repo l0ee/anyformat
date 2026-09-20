@@ -12,6 +12,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 }) => {
   const shortcuts = [
     { key: '1 / 2 / 3', description: 'Switch tab (SVG Vectorizer / Batch / Format Converter)' },
+    { key: 'Cmd / Ctrl + Enter', description: 'Start conversion / vectorization' },
     { key: 'Cmd / Ctrl + K', description: 'Open Keyboard Shortcuts Helper' },
     { key: '?', description: 'Toggle Keyboard Shortcuts Modal' },
     { key: 'Shift + T', description: 'Toggle Dark / Light Theme' },

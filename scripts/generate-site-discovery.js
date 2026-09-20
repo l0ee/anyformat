@@ -1,8 +1,20 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadEnv } from 'vite';
 
-const DEFAULT_SITE_URL = 'http://localhost:5173/';
+export const DEFAULT_SITE_URL = 'http://localhost:5173/';
+
+export function resolveSiteUrl(env = process.env) {
+  if (env.VITE_SITE_URL) return env.VITE_SITE_URL;
+  try {
+    const loaded = loadEnv(process.env.NODE_ENV || 'production', process.cwd(), '');
+    if (loaded.VITE_SITE_URL) return loaded.VITE_SITE_URL;
+  } catch {
+    // ignore
+  }
+  return DEFAULT_SITE_URL;
+}
 
 function normalizeSiteUrl(siteUrl) {
   let parsedUrl;
@@ -53,7 +65,7 @@ export function createSiteDiscoveryFiles(siteUrl) {
 
 export async function writeSiteDiscoveryFiles(
   outputDirectory,
-  siteUrl = process.env.VITE_SITE_URL || DEFAULT_SITE_URL,
+  siteUrl = resolveSiteUrl(),
 ) {
   const files = createSiteDiscoveryFiles(siteUrl);
   await mkdir(outputDirectory, { recursive: true });

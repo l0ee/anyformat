@@ -8,6 +8,7 @@ import {
 import { traceMonochromeFromImageData } from '../engine/monochromeTracer';
 import { traceColorFromImageData } from '../engine/colorTracer';
 import { restoreTraceDimensions } from './traceWorkerUtils';
+import { readImageHeaderDimensions } from '../utils/imageHeader';
 
 export interface WorkerItem {
   worker: Worker;
@@ -63,7 +64,7 @@ export class TraceWorkerClient {
     return item;
   }
 
-  private replaceWorker(oldItem: WorkerItem): WorkerItem {
+  private replaceWorker(oldItem: WorkerItem): WorkerItem | null {
     try {
       oldItem.worker.onmessage = null;
       oldItem.worker.onerror = null;
@@ -73,21 +74,36 @@ export class TraceWorkerClient {
       // Ignore termination errors
     }
 
-    let newItem: WorkerItem;
-    try {
-      newItem = this.createWorkerItem();
-    } catch {
-      newItem = { worker: oldItem.worker, busy: false, activeRequestId: null };
-    }
-
     const index = this.workers.indexOf(oldItem);
-    if (index !== -1) {
-      this.workers[index] = newItem;
-    } else {
-      this.workers.push(newItem);
+    try {
+      const newItem = this.createWorkerItem();
+      if (index !== -1) {
+        this.workers[index] = newItem;
+      } else {
+        this.workers.push(newItem);
+      }
+      return newItem;
+    } catch {
+      // Worker creation failed: remove the terminated worker from the pool
+      if (index !== -1) {
+        this.workers.splice(index, 1);
+      }
+      if (this.workers.length === 0) {
+        this.isWorkerSupported = false;
+      }
+      return null;
     }
+  }
 
-    return newItem;
+  private scheduleFallback(req: PendingTask): void {
+    setTimeout(async () => {
+      try {
+        const res = await req.fallback();
+        req.resolve(res);
+      } catch (err) {
+        req.reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    }, 0);
   }
 
   public handleWorkerMessage(item: WorkerItem, event: MessageEvent<TraceWorkerResult>): void {
@@ -101,7 +117,7 @@ export class TraceWorkerClient {
         const activeReq = this.pendingRequests.get(activeId);
         if (activeReq) {
           this.cleanupRequest(activeReq);
-          activeReq.fallback().then(activeReq.resolve, activeReq.reject);
+          this.scheduleFallback(activeReq);
         }
       }
 
@@ -123,7 +139,7 @@ export class TraceWorkerClient {
       // Task-level error response: reuse worker, fallback task to main thread
       item.busy = false;
       item.activeRequestId = null;
-      req.fallback().then(req.resolve, req.reject);
+      this.scheduleFallback(req);
       this.dispatchNext();
     }
   }
@@ -139,21 +155,23 @@ export class TraceWorkerClient {
       const activeReq = this.pendingRequests.get(activeId);
       if (activeReq) {
         this.cleanupRequest(activeReq);
-        activeReq.fallback().then(activeReq.resolve, activeReq.reject);
+        this.scheduleFallback(activeReq);
       }
     }
 
-    // Fall back queued work
-    while (this.pendingQueue.length > 0) {
-      const queuedId = this.pendingQueue.shift()!;
-      const queuedReq = this.pendingRequests.get(queuedId);
-      if (queuedReq) {
-        this.cleanupRequest(queuedReq);
-        queuedReq.fallback().then(queuedReq.resolve, queuedReq.reject);
+    // If no workers remain in the pool, fall back queued work across ticks
+    if (this.workers.length === 0) {
+      while (this.pendingQueue.length > 0) {
+        const queuedId = this.pendingQueue.shift()!;
+        const queuedReq = this.pendingRequests.get(queuedId);
+        if (queuedReq) {
+          this.cleanupRequest(queuedReq);
+          this.scheduleFallback(queuedReq);
+        }
       }
+    } else {
+      this.dispatchNext();
     }
-
-    this.dispatchNext();
   }
 
   public handleWorkerMessageError(item: WorkerItem): void {
@@ -205,7 +223,7 @@ export class TraceWorkerClient {
       // If postMessage throws, terminate worker and resolve via fallback
       this.cleanupRequest(req);
       this.replaceWorker(availableWorker);
-      req.fallback().then(req.resolve, req.reject);
+      this.scheduleFallback(req);
       this.dispatchNext();
     }
   }
@@ -220,8 +238,8 @@ export class TraceWorkerClient {
     file: File,
     maxResolution?: number,
     signal?: AbortSignal
-  ): Promise<ImageData> {
-    return new Promise<ImageData>((resolve, reject) => {
+  ): Promise<{ imageData: ImageData; origWidth: number; origHeight: number }> {
+    return new Promise<{ imageData: ImageData; origWidth: number; origHeight: number }>((resolve, reject) => {
       if (signal?.aborted) {
         reject(signal.reason || this.createAbortError());
         return;
@@ -250,10 +268,27 @@ export class TraceWorkerClient {
         signal.addEventListener('abort', onAbort);
       }
 
+      // Proactively check header dimensions to abort decoding early if an image exceeds safe memory bounds
+      readImageHeaderDimensions(file).then((headerDims) => {
+        if (!headerDims) return;
+        if (headerDims.width > 16_384 || headerDims.height > 16_384 || headerDims.width * headerDims.height > 67_108_864) {
+          cleanup();
+          reject(new Error(`Image dimensions (${headerDims.width}x${headerDims.height}) exceed maximum allowable size (16,384px per edge / 64MP).`));
+        }
+      }).catch(() => {});
+
       img.onload = () => {
         try {
-          let width = img.width;
-          let height = img.height;
+          const origWidth = img.naturalWidth || img.width;
+          const origHeight = img.naturalHeight || img.height;
+          if (origWidth > 16_384 || origHeight > 16_384 || origWidth * origHeight > 67_108_864) {
+            cleanup();
+            reject(new Error(`Image dimensions (${origWidth}x${origHeight}) exceed maximum allowable size (16,384px per edge / 64MP).`));
+            return;
+          }
+
+          let width = origWidth;
+          let height = origHeight;
           if (maxResolution && (width > maxResolution || height > maxResolution)) {
             if (width > height) {
               height = Math.round((height * maxResolution) / width);
@@ -275,7 +310,7 @@ export class TraceWorkerClient {
           ctx.drawImage(img, 0, 0, width, height);
           const data = ctx.getImageData(0, 0, width, height);
           cleanup();
-          resolve(data);
+          resolve({ imageData: data, origWidth, origHeight });
         } catch (err) {
           cleanup();
           reject(err instanceof Error ? err : new Error(String(err)));
@@ -316,15 +351,16 @@ export class TraceWorkerClient {
       }
 
       try {
-        imageData = await this.decodeFile(fileOrData, options.maxResolution, decodeController.signal);
+        const decoded = await this.decodeFile(fileOrData, options.maxResolution, decodeController.signal);
+        imageData = decoded.imageData;
+        origWidth = decoded.origWidth;
+        origHeight = decoded.origHeight;
       } finally {
         if (signal) {
           signal.removeEventListener('abort', onCallerAbort);
         }
         this.decodingRequests.delete(decodeController);
       }
-      origWidth = imageData.width;
-      origHeight = imageData.height;
     } else {
       imageData = fileOrData;
       origWidth = imageData.width;
@@ -419,15 +455,16 @@ export class TraceWorkerClient {
       }
 
       try {
-        imageData = await this.decodeFile(fileOrData, options.maxResolution, decodeController.signal);
+        const decoded = await this.decodeFile(fileOrData, options.maxResolution, decodeController.signal);
+        imageData = decoded.imageData;
+        origWidth = decoded.origWidth;
+        origHeight = decoded.origHeight;
       } finally {
         if (signal) {
           signal.removeEventListener('abort', onCallerAbort);
         }
         this.decodingRequests.delete(decodeController);
       }
-      origWidth = imageData.width;
-      origHeight = imageData.height;
     } else {
       imageData = fileOrData;
       origWidth = imageData.width;
