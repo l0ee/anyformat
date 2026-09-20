@@ -17,7 +17,7 @@ AnyFormat is a browser-based React application for converting image formats and 
 - **Format conversion:** convert supported raster images between PNG, JPEG, and WebP, trace raster images to SVG, or rasterize SVG files. Exact decoder and encoder support depends on the browser.
 - **Browser execution:** tracing and conversion use browser file, image, canvas, and Web Worker APIs. This repository does not implement a file-upload endpoint.
 
-No fixed upload-size limit is enforced in the application. Practical limits depend on the selected trace resolution and the browser's available memory.
+Universal conversions enforce a 100 MB per-file limit to protect client-side memory. Practical vector trace limits depend on the selected trace resolution and browser memory.
 
 ## Tech stack
 
@@ -31,13 +31,14 @@ No fixed upload-size limit is enforced in the application. Practical limits depe
 
 | Input | Available outputs |
 | --- | --- |
-| PNG | JPEG, WebP, SVG |
-| JPEG | PNG, WebP, SVG |
-| WebP | PNG, JPEG, SVG |
-| BMP | PNG, JPEG, WebP, SVG |
-| SVG | PNG, JPEG, WebP |
+| PNG | JPEG, WebP, SVG, PDF |
+| JPEG | PNG, WebP, SVG, PDF |
+| WebP | PNG, JPEG, SVG, PDF |
+| BMP | PNG, JPEG, WebP, SVG, PDF |
+| SVG | PNG, JPEG, WebP, PDF |
+| PDF | PNG, JPEG, WebP, SVG |
 
-Decoder support can vary between browsers. PDF and ICO conversion paths are not exposed because their current implementations are not sufficiently verified.
+All conversions run 100% client-side in the browser. Decoder support can vary between browsers. Unsupported format paths (such as ICO) remain unexposed pending verified in-browser codec support.
 
 ## Local development
 

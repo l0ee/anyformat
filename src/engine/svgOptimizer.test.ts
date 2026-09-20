@@ -47,4 +47,13 @@ describe('optimizeSvg', () => {
     expect(result.optimizedSize).toBe(0);
     expect(result.savingsPercentage).toBe(0);
   });
+
+  it('preserves AnyFormat generator comment during comment removal', () => {
+    const input = '<!-- remove this -->\n<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->\n<svg data-generator="AnyFormat"><path d="M0 0" /></svg>';
+    const result = optimizeSvg(input, { removeComments: true });
+
+    expect(result.svg).not.toContain('remove this');
+    expect(result.svg).toContain('<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->');
+    expect(result.svg).toContain('data-generator="AnyFormat"');
+  });
 });
