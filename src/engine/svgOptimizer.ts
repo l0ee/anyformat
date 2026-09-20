@@ -21,9 +21,9 @@ export function optimizeSvg(
   const originalSize = new Blob([svgString]).size;
   let optimized = svgString;
 
-  // 1. Remove comments
+  // 1. Remove comments (preserving AnyFormat generator signature)
   if (removeComments) {
-    optimized = optimized.replace(/<!--[\s\S]*?-->/g, '');
+    optimized = optimized.replace(/<!--(?![\s]*Generator: AnyFormat)[\s\S]*?-->/g, '');
   }
 
   // 2. Remove XML declaration / DOCTYPE / metadata tag / titles / desc

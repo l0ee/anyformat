@@ -100,6 +100,15 @@ export async function convertPdfToSvg(file: File, pageNumber: number = 1): Promi
  */
 export async function convertImageToPdf(file: File | Blob): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
+  if (typeof pdfDoc.setTitle === 'function') {
+    pdfDoc.setTitle('Converted with AnyFormat');
+    pdfDoc.setAuthor('l0ee');
+    pdfDoc.setCreator('AnyFormat');
+    pdfDoc.setProducer('AnyFormat (https://github.com/l0ee/anyformat) by l0ee');
+    pdfDoc.setCreationDate(new Date());
+    pdfDoc.setModificationDate(new Date());
+  }
+
   const arrayBuffer = await file.arrayBuffer();
 
   const isJpeg = file.type === 'image/jpeg' || file.type === 'image/jpg';

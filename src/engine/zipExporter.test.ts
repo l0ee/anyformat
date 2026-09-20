@@ -61,4 +61,12 @@ describe('exportBatchZip', () => {
       'folder/icon (2).svg': 'second icon',
     });
   });
+
+  it('embeds AnyFormat creator comment in the zip archive', async () => {
+    const items: ZipExportItem[] = [{ filename: 'file.txt', content: 'test' }];
+    const blob = await exportBatchZip(items);
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer()) as unknown as { comment?: string };
+    expect(zip.comment).toContain('AnyFormat');
+    expect(zip.comment).toContain('l0ee');
+  });
 });

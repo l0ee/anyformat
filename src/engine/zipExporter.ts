@@ -33,7 +33,10 @@ export async function exportBatchZip(items: ZipExportItem[]): Promise<Blob> {
     zip.file(finalName, item.content);
   }
 
-  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const zipBlob = await zip.generateAsync({
+    type: 'blob',
+    comment: 'Exported with AnyFormat (https://github.com/l0ee/anyformat) by l0ee',
+  });
   return zipBlob;
 }
 
