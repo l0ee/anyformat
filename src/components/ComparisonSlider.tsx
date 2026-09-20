@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useId, useEffect } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 interface ComparisonSliderProps {
   originalUrl: string;
@@ -10,8 +11,27 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
   svgContent,
 }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLElement>(null);
   const sliderId = useId();
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
 
   const handleMove = useCallback((clientX: number) => {
     if (!containerRef.current) return;
@@ -58,8 +78,23 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
       ref={containerRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      className="relative w-full h-[400px] sm:h-[500px] rounded-2xl overflow-hidden select-none touch-pan-y bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:16px_16px] bg-neutral-950 border border-neutral-800 shadow-2xl flex items-center justify-center cursor-ew-resize"
+      className={`relative w-full rounded-2xl overflow-hidden select-none touch-pan-y bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:16px_16px] bg-neutral-950 border border-neutral-800 shadow-2xl flex items-center justify-center cursor-ew-resize ${
+        isFullscreen ? 'h-screen rounded-none border-none' : 'h-[400px] sm:h-[500px]'
+      }`}
     >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleFullscreen();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="absolute bottom-16 right-4 sm:bottom-20 bg-black/50 hover:bg-black/70 text-white rounded-lg p-2.5 backdrop-blur z-40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
+        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      >
+        {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+      </button>
+
       {/* Original Image (Left Side) */}
       <div className="absolute inset-0 flex items-center justify-center p-4">
         {originalUrl && (
