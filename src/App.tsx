@@ -522,6 +522,11 @@ export const App: React.FC = () => {
         updated[i].resultSize = result.blob.size;
         updated[i].status = 'completed';
         updated[i].progress = 100;
+
+        if (updated.length === 1) {
+          const baseName = updated[i].name.replace(/\.[^/.]+$/, '');
+          downloadBlob(result.blob, `${baseName}.${updated[i].targetExt}`);
+        }
       } catch (err: unknown) {
         updated[i].status = 'error';
         updated[i].error = err instanceof Error ? err.message : 'Conversion failed';
@@ -532,12 +537,17 @@ export const App: React.FC = () => {
 
     setIsUniversalProcessing(false);
     const failureCount = updated.filter((item) => item.status === 'error').length;
-    showToast(
-      failureCount > 0
-        ? `Conversion finished with ${failureCount} failed file${failureCount === 1 ? '' : 's'}.`
-        : 'AnyFormat conversion complete!',
-      failureCount > 0 ? 'error' : 'success'
-    );
+    if (failureCount > 0) {
+      showToast(
+        `Conversion finished with ${failureCount} failed file${failureCount === 1 ? '' : 's'}.`,
+        'error'
+      );
+    } else if (updated.length === 1) {
+      const baseName = updated[0].name.replace(/\.[^/.]+$/, '');
+      showToast(`Conversion complete! ${baseName}.${updated[0].targetExt} downloaded.`, 'success');
+    } else {
+      showToast('AnyFormat conversion complete!', 'success');
+    }
   };
 
   const downloadUniversalItem = (id: string) => {
