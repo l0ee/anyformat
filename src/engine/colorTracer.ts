@@ -22,7 +22,7 @@ export function traceColorFromImageData(
 
   if (width === 0 || height === 0) {
     return {
-      svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0"></svg>`,
+      svg: `<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->\n<svg xmlns="http://www.w3.org/2000/svg" data-generator="AnyFormat" data-author="l0ee" viewBox="0 0 0 0" width="0" height="0"></svg>`,
       width: 0,
       height: 0,
       pathCount: 0,
@@ -115,7 +115,9 @@ export function traceColorFromImageData(
     }
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${oWidth}" height="${oHeight}">
+  const svg = `<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->
+<svg xmlns="http://www.w3.org/2000/svg" data-generator="AnyFormat" data-author="l0ee" viewBox="0 0 ${width} ${height}" width="${oWidth}" height="${oHeight}">
+  <desc>Converted by AnyFormat (https://github.com/l0ee/anyformat) by l0ee</desc>
 ${svgLayersStr}</svg>`;
 
   return {

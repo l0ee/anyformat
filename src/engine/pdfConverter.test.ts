@@ -18,6 +18,12 @@ vi.mock('pdfjs-dist', () => ({
 vi.mock('pdf-lib', () => ({
   PDFDocument: {
     create: async () => ({
+      setTitle: vi.fn(),
+      setAuthor: vi.fn(),
+      setCreator: vi.fn(),
+      setProducer: vi.fn(),
+      setCreationDate: vi.fn(),
+      setModificationDate: vi.fn(),
       embedPng: async () => ({ width: 100, height: 100 }),
       embedJpg: async () => ({ width: 100, height: 100 }),
       addPage: () => ({

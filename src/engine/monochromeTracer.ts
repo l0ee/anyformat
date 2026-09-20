@@ -142,7 +142,9 @@ export function traceMonochromeFromImageData(
     }
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  const svg = `<!-- Generator: AnyFormat (https://github.com/l0ee/anyformat) by l0ee -->
+<svg xmlns="http://www.w3.org/2000/svg" data-generator="AnyFormat" data-author="l0ee" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  <desc>Converted by AnyFormat (https://github.com/l0ee/anyformat) by l0ee</desc>
 ${svgPathsStr}</svg>`;
 
   return {
