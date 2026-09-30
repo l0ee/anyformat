@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 
 test('preserves the selected PDF page filename in manual downloads and ZIP exports without auto-downloading', async ({ page }) => {
+  test.setTimeout(90_000);
   const pdf = await PDFDocument.create();
   pdf.addPage([32, 32]);
   pdf.addPage([32, 32]);
@@ -12,13 +13,15 @@ test('preserves the selected PDF page filename in manual downloads and ZIP expor
     name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()),
   });
   const pageNumber = page.getByLabel('PDF page for report.pdf');
-  await expect(pageNumber).toBeEnabled();
+  // Cold PDF.js worker startup can take longer on shared CI runners.
+  await expect(pageNumber).toBeEnabled({ timeout: 60_000 });
+  await expect(pageNumber).toHaveAttribute('max', '2');
   await pageNumber.fill('2');
   await page.getByLabel('Output for report.pdf').selectOption('png');
   let downloadCount = 0;
   page.on('download', () => { downloadCount++; });
   await page.getByRole('button', { name: 'Convert all files' }).click();
-  await expect(page.getByRole('button', { name: 'Download report_p2.png', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download report_p2.png', exact: true })).toBeVisible({ timeout: 60_000 });
   expect(downloadCount).toBe(0);
 
   const manual = page.waitForEvent('download');

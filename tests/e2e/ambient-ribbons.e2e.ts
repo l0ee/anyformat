@@ -56,6 +56,9 @@ test('switching tabs preserves one background and the motion preference', async 
 });
 
 test('hover lights the upload surface and clears when motion is paused', async ({ page }) => {
+  // Keep the entire uploader in view so hover does not trigger auto-scrolling
+  // (scroll intentionally clears the effect in the application).
+  await page.setViewportSize({ width: 1440, height: 1200 });
   const upload = page.getByRole('group', { name: 'Drag images here or browse' });
   const background = page.locator('[data-animation="ambient-ribbons"]');
   // Avoid Firefox's smooth auto-scroll continuing after the pointer settles.
