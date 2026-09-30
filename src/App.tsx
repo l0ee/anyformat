@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { HeroHeader } from './components/HeroHeader';
-import { HoverBackground } from './components/HoverBackground';
+import { AmbientRibbonBackground } from './components/AmbientRibbonBackground';
 import { Dropzone } from './components/Dropzone';
 import { PresetSelector } from './components/PresetSelector';
 import { ControlPanel } from './components/ControlPanel';
@@ -15,27 +15,19 @@ import { UniversalDropzone } from './components/universal/UniversalDropzone';
 import { UniversalQueue } from './components/universal/UniversalQueue';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { getClipboardImages } from './components/clipboardPaste';
-import { ShieldCheck, Cpu, Layers } from 'lucide-react';
-
-const VECTOR_MIME_TYPES: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/webp': 'webp',
-  'image/bmp': 'bmp',
-  'image/gif': 'gif',
-};
-
-const UNIVERSAL_MIME_TYPES: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/webp': 'webp',
-  'image/bmp': 'bmp',
-  'image/svg+xml': 'svg',
-  'application/pdf': 'pdf',
-};
+import { ShieldCheck, Cpu, Layers, X } from 'lucide-react';
 
 import { convertUniversalFile } from './engine/universal/converterEngine';
-import { getFileExtension, isSupportedSourceExtension, SUPPORTED_FORMATS, UniversalTaskItem } from './engine/universal/types';
+import {
+  getFileExtension,
+  getUniqueFormatLabels,
+  isSupportedSourceExtension,
+  MAX_FILE_SIZE_BYTES,
+  MAX_FILE_SIZE_LABEL,
+  SUPPORTED_FORMATS,
+  UniversalTaskItem,
+  VECTOR_STUDIO_INPUT_FORMATS,
+} from './engine/universal/types';
 import { getPdfPageCount } from './engine/pdfConverter';
 
 import { traceWorkerClient } from './workers/traceWorkerClient';
@@ -58,28 +50,29 @@ interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-const SUPPORTED_RASTER_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']);
-const SUPPORTED_RASTER_MIME_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/bmp',
-  'image/gif',
-]);
+const getPreferredMimeMap = (formats: readonly { mime: string; ext: string }[]): Record<string, string> =>
+  Object.fromEntries(
+    formats
+      .filter((format, index) => formats.findIndex((candidate) => candidate.mime === format.mime) === index)
+      .map((format) => [format.mime, format.ext])
+  );
+
+const VECTOR_MIME_TYPES = getPreferredMimeMap(VECTOR_STUDIO_INPUT_FORMATS);
+const UNIVERSAL_MIME_TYPES = getPreferredMimeMap(Object.values(SUPPORTED_FORMATS));
+const VECTOR_STUDIO_FORMAT_LABEL = getUniqueFormatLabels(VECTOR_STUDIO_INPUT_FORMATS).join(', ');
 
 const MAX_QUEUE_CAPACITY = 100;
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 
 const isSupportedRasterFile = (file: File): boolean => {
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  return SUPPORTED_RASTER_EXTENSIONS.has(extension) || SUPPORTED_RASTER_MIME_TYPES.has(file.type);
+  const extension = getFileExtension(file.name);
+  return VECTOR_STUDIO_INPUT_FORMATS.some((format) => format.ext === extension || format.mime === file.type);
 };
 
 const getStoredTheme = (): boolean => {
   try {
-    return localStorage.getItem('theme') !== 'light';
+    return localStorage.getItem('theme') === 'dark';
   } catch {
-    return true;
+    return false;
   }
 };
 
@@ -162,7 +155,7 @@ export const App: React.FC = () => {
     toastTimeoutRef.current = setTimeout(() => {
       setToast(null);
       toastTimeoutRef.current = null;
-    }, 3000);
+    }, type === 'error' ? 6000 : 3000);
   }, []);
 
   // Dark mode effect
@@ -315,7 +308,7 @@ export const App: React.FC = () => {
     const file = files[0];
     if (file && isSupportedRasterFile(file)) {
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        showToast(`${file.name} exceeded the 100 MB limit.`, 'error');
+        showToast(`${file.name} exceeded the ${MAX_FILE_SIZE_LABEL} limit.`, 'error');
         return;
       }
       resetSingleFileState();
@@ -324,7 +317,7 @@ export const App: React.FC = () => {
       setOriginalUrl(url);
       showToast(`Loaded ${file.name}`, 'info');
     } else if (file) {
-      showToast('Unsupported file. Choose a PNG, JPG, WebP, BMP, or GIF image.', 'error');
+      showToast(`Unsupported file. Choose a ${VECTOR_STUDIO_FORMAT_LABEL} image.`, 'error');
     }
   };
 
@@ -339,14 +332,14 @@ export const App: React.FC = () => {
 
     if (oversizedCount > 0) {
       showToast(
-        `${oversizedCount} file${oversizedCount === 1 ? '' : 's'} exceeded the 100 MB limit and ${oversizedCount === 1 ? 'was' : 'were'} skipped.`,
+        `${oversizedCount} file${oversizedCount === 1 ? '' : 's'} exceeded the ${MAX_FILE_SIZE_LABEL} limit and ${oversizedCount === 1 ? 'was' : 'were'} skipped.`,
         'error'
       );
     }
 
     if (validFiles.length === 0) {
       if (rejectedFormatCount > 0 && oversizedCount === 0) {
-        showToast('No supported images found. Choose PNG, JPG, WebP, BMP, or GIF files.', 'error');
+        showToast(`No supported images found. Choose ${VECTOR_STUDIO_FORMAT_LABEL} files.`, 'error');
       }
       return;
     }
@@ -591,7 +584,7 @@ export const App: React.FC = () => {
 
     if (oversized.length > 0) {
       showToast(
-        `${oversized.length} file${oversized.length === 1 ? '' : 's'} exceeded the 100 MB limit and ${oversized.length === 1 ? 'was' : 'were'} skipped.`,
+        `${oversized.length} file${oversized.length === 1 ? '' : 's'} exceeded the ${MAX_FILE_SIZE_LABEL} limit and ${oversized.length === 1 ? 'was' : 'were'} skipped.`,
         'error'
       );
     }
@@ -757,7 +750,6 @@ export const App: React.FC = () => {
 
     let processedCount = 0;
     let failedCount = 0;
-    let singleResult: { blob: Blob; ext: string; baseName: string } | null = null;
 
     try {
       while (true) {
@@ -776,7 +768,6 @@ export const App: React.FC = () => {
         const currentFile = nextTask.file;
         const currentTargetExt = nextTask.targetExt;
         const currentPageNumber = nextTask.pageNumber;
-        const currentName = nextTask.name;
 
         setUniversalItems((current) =>
           current.map((i) =>
@@ -806,7 +797,8 @@ export const App: React.FC = () => {
                     ...i,
                     status: 'completed',
                     progress: 100,
-                    resultBlob: result.blob,
+                     resultBlob: result.blob,
+                     resultFilename: result.filename,
                     resultUrl,
                     resultSize: result.blob.size,
                   }
@@ -815,8 +807,6 @@ export const App: React.FC = () => {
           );
 
           processedCount++;
-          const baseName = currentName.replace(/\.[^/.]+$/, '');
-          singleResult = { blob: result.blob, ext: currentTargetExt, baseName };
         } catch (err: unknown) {
           failedCount++;
           const errorMsg = err instanceof Error ? err.message : 'Conversion failed';
@@ -837,9 +827,8 @@ export const App: React.FC = () => {
         `Conversion finished with ${failedCount} failed file${failedCount === 1 ? '' : 's'}.`,
         'error'
       );
-    } else if (processedCount === 1 && singleResult) {
-      downloadBlob(singleResult.blob, `${singleResult.baseName}.${singleResult.ext}`);
-      showToast(`Conversion complete! ${singleResult.baseName}.${singleResult.ext} downloaded.`, 'success');
+    } else if (processedCount === 1) {
+      showToast('Conversion complete. Choose Download to save your file.', 'success');
     } else if (processedCount > 0) {
       showToast('AnyFormat conversion complete!', 'success');
     }
@@ -848,9 +837,9 @@ export const App: React.FC = () => {
   const downloadUniversalItem = (id: string) => {
     const item = universalItems.find((i) => i.id === id);
     if (item?.resultBlob) {
-      const baseName = item.name.replace(/\.[^/.]+$/, '');
-      downloadBlob(item.resultBlob, `${baseName}.${item.targetExt}`);
-      showToast(`Downloaded ${baseName}.${item.targetExt}`, 'success');
+      const filename = item.resultFilename || `${item.name.replace(/\.[^/.]+$/, '')}.${item.targetExt}`;
+      downloadBlob(item.resultBlob, filename);
+      showToast(`Downloaded ${filename}`, 'success');
     }
   };
 
@@ -877,7 +866,7 @@ export const App: React.FC = () => {
     const exportItems = universalItems
       .filter((i) => i.status === 'completed' && i.resultBlob)
       .map((i) => ({
-        filename: `${i.name.replace(/\.[^/.]+$/, '')}.${i.targetExt}`,
+        filename: i.resultFilename || `${i.name.replace(/\.[^/.]+$/, '')}.${i.targetExt}`,
         content: i.resultBlob!,
       }));
 
@@ -911,7 +900,11 @@ export const App: React.FC = () => {
     onConvert: () => {
       if (activeTab === 'universal') {
         if (!isUniversalProcessing && universalItems.length > 0) {
-          startUniversalConversion();
+          if (!universalItems.some((item) => item.status === 'idle') && universalItems.some((item) => item.status === 'error')) {
+            handleRetryFailedUniversal();
+          } else {
+            startUniversalConversion();
+          }
         }
       } else if (activeTab === 'batch') {
         if (!isBatchProcessing && batchItems.length > 0) {
@@ -957,7 +950,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-shell relative isolate min-h-screen overflow-x-clip text-stone-900 transition-colors dark:text-white">
-      <HoverBackground />
+      <AmbientRibbonBackground />
       <a href="#main-content" className="skip-link">
         Skip to converter
       </a>
@@ -973,7 +966,7 @@ export const App: React.FC = () => {
       {/* Toast Notification Banner */}
       {toast && (
         <div
-          className="app-toast fixed inset-x-3 bottom-3 z-[60] flex justify-center sm:inset-x-auto sm:bottom-5 sm:right-5"
+          className="app-toast fixed inset-x-3 bottom-16 z-[60] flex justify-center sm:inset-x-auto sm:bottom-5 sm:right-5"
           role={toast.type === 'error' ? 'alert' : 'status'}
           aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
@@ -988,6 +981,11 @@ export const App: React.FC = () => {
             }`}
           >
             <span>{toast.message}</span>
+            <button type="button" aria-label="Dismiss notification" onClick={() => {
+              if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+              toastTimeoutRef.current = null;
+              setToast(null);
+            }} className="ml-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white hover:bg-white/20"><X aria-hidden="true" className="h-4 w-4" /></button>
           </div>
         </div>
       )}
@@ -997,7 +995,7 @@ export const App: React.FC = () => {
         tabIndex={-1}
         className="app-main relative mx-auto max-w-7xl space-y-6 px-3 pb-8 pt-6 sm:space-y-8 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8"
       >
-        <HeroHeader activeTab={activeTab} />
+        <HeroHeader activeTab={activeTab} compact={activeTab === 'single' ? Boolean(selectedFile) : activeTab === 'batch' ? batchItems.length > 0 : universalItems.length > 0} />
 
         {activeTab === 'single' ? (
           <div className="space-y-8">
@@ -1089,7 +1087,7 @@ export const App: React.FC = () => {
           </div>
         ) : activeTab === 'batch' ? (
           <div className="space-y-6">
-            <Dropzone onFileSelect={handleBatchFileSelect} multiple={true} disabled={isBatchProcessing} />
+            <Dropzone onFileSelect={handleBatchFileSelect} multiple={true} disabled={isBatchProcessing} compact={batchItems.length > 0} />
 
             {batchItems.length > 0 && (
               <>
@@ -1126,7 +1124,7 @@ export const App: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            <UniversalDropzone onFilesAdded={handleUniversalFilesAdded} disabled={isUniversalProcessing} />
+            <UniversalDropzone onFilesAdded={handleUniversalFilesAdded} disabled={isUniversalProcessing} compact={universalItems.length > 0} />
 
             {universalItems.length > 0 && (
               <UniversalQueue
@@ -1149,7 +1147,7 @@ export const App: React.FC = () => {
               />
             )}
 
-            <section aria-label="Converter Features" className="grid grid-cols-1 gap-5 pt-2 md:grid-cols-3">
+            {universalItems.length === 0 && <section aria-label="Converter Features" className="grid grid-cols-1 gap-5 pt-2 md:grid-cols-3">
               <div className="app-panel rounded-2xl p-6 transition-all">
                 <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
                   <ShieldCheck className="h-6 w-6" />
@@ -1185,7 +1183,7 @@ export const App: React.FC = () => {
                   Open an image in Vector Studio to adjust colors and detail, compare it with the original, and inspect or copy the SVG code.
                 </p>
               </div>
-            </section>
+            </section>}
           </div>
         )}
       </main>

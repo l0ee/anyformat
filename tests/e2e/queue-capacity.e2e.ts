@@ -114,6 +114,7 @@ test('caps repeated Universal additions and skips object URLs and PDF page count
     'Accepted 2 files; skipped 2 files (2 over the 100-file queue limit).',
   );
   await expect(page.getByLabel('PDF page for accepted.pdf')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByLabel('PDF page for accepted.pdf')).toBeEnabled({ timeout: 60_000 });
 
   await fileInput.setInputFiles({ name: 'at-capacity.pdf', mimeType: 'application/pdf', buffer: pdf });
   await expect(page.getByRole('alert')).toHaveText(
