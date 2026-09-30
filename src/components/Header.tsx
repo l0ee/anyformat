@@ -28,7 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="h-9 w-auto object-contain transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 group-hover:drop-shadow-[0_0_12px_rgba(244,63,94,0.6)]"
             decoding="async"
           />
-          <span className="hidden lg:inline text-sm font-extrabold tracking-tight text-stone-900 dark:text-white">
+          <span aria-hidden="true" className="hidden lg:inline text-sm font-extrabold tracking-tight text-stone-900 dark:text-white">
             AnyFormat
           </span>
           <a

@@ -1,5 +1,9 @@
 export type FileCategory = 'image' | 'document' | 'vector';
 
+/** Applies to every local file intake flow. */
+export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+export const MAX_FILE_SIZE_LABEL = '100 MB';
+
 export interface FormatSpec {
   ext: string;
   mime: string;
@@ -7,6 +11,20 @@ export interface FormatSpec {
   category: FileCategory;
   canExportTo: string[]; // extensions this format can be converted into
 }
+
+/**
+ * Raster formats accepted by Vector Studio and Vector Batch. These remain
+ * separate from universal conversion capabilities because GIF is traceable,
+ * but is not currently offered by the universal conversion engine.
+ */
+export const VECTOR_STUDIO_INPUT_FORMATS = [
+  { ext: 'png', mime: 'image/png', label: 'PNG' },
+  { ext: 'jpg', mime: 'image/jpeg', label: 'JPEG' },
+  { ext: 'jpeg', mime: 'image/jpeg', label: 'JPEG' },
+  { ext: 'webp', mime: 'image/webp', label: 'WebP' },
+  { ext: 'bmp', mime: 'image/bmp', label: 'BMP' },
+  { ext: 'gif', mime: 'image/gif', label: 'GIF' },
+] as const;
 
 export const SUPPORTED_FORMATS: Record<string, FormatSpec> = {
   png: {
@@ -60,6 +78,31 @@ export const SUPPORTED_FORMATS: Record<string, FormatSpec> = {
   },
 };
 
+export const getUniqueFormatLabels = (formats: readonly { label: string }[]): string[] =>
+  [...new Set(formats.map((format) => format.label))];
+
+export const getUniversalInputFormatLabels = (): string[] =>
+  getUniqueFormatLabels(Object.values(SUPPORTED_FORMATS));
+
+export const getUniversalOutputFormatLabels = (): string[] =>
+  getUniqueFormatLabels(
+    [...new Set(Object.values(SUPPORTED_FORMATS).flatMap((format) => format.canExportTo))]
+      .map((extension) => SUPPORTED_FORMATS[extension])
+      .filter((format): format is FormatSpec => Boolean(format))
+  );
+
+export const getUniversalInputAccept = (): string =>
+  Object.values(SUPPORTED_FORMATS)
+    .flatMap((format) => [`.${format.ext}`, format.mime])
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(',');
+
+export const getVectorStudioInputAccept = (): string =>
+  VECTOR_STUDIO_INPUT_FORMATS
+    .flatMap((format) => [`.${format.ext}`, format.mime])
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(',');
+
 export function getFileExtension(filename: string): string {
   return filename.split('.').pop()?.toLowerCase() || '';
 }
@@ -106,6 +149,7 @@ export interface UniversalTaskItem {
   progress: number;
   previewUrl?: string;
   resultBlob?: Blob;
+  resultFilename?: string;
   resultUrl?: string;
   resultSize?: number;
   error?: string;

@@ -131,9 +131,10 @@ describe('UniversalQueue Component Rendering', () => {
       />
     ).replace(/<!--.*?-->/g, '');
 
-    expect(html).toContain('Search queued files...');
+    expect(html).toContain('Search queue');
+    expect(html).toContain('Filter and sort');
     expect(html).toContain('Default order');
-    expect(html).toContain('Name (A-Z)');
+    expect(html).toContain('Name (A–Z)');
     expect(html).toContain('File size');
   });
 });

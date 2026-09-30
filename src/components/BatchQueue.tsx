@@ -17,8 +17,11 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
   const statusId = useId();
   const completedCount = items.filter((item) => item.status === 'completed').length;
   const errorCount = items.filter((item) => item.status === 'error').length;
+  const processingCount = items.filter((item) => item.status === 'processing').length;
+  const idleCount = items.filter((item) => item.status === 'idle').length;
   const hasIdle = items.some((item) => item.status === 'idle');
   const isFinished = items.length > 0 && completedCount + errorCount === items.length;
+  const zipHelpId = useId();
 
   return (
     <section aria-labelledby={headingId} className="app-panel space-y-4 rounded-2xl p-4 text-stone-900 shadow-xl sm:p-5 dark:text-white">
@@ -26,13 +29,13 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
         <div>
           <h3 id={headingId} className="text-sm font-serif uppercase tracking-wider">Batch queue ({items.length} files)</h3>
           <p id={statusId} role="status" aria-live="polite" aria-atomic="true" className="text-xs text-stone-600 dark:text-slate-400">
-            {completedCount} completed{errorCount ? `, ${errorCount} failed` : ''} of {items.length}
+            {idleCount} ready · {processingCount} processing · {completedCount} completed · {errorCount} failed
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onClearQueue} disabled={isProcessing} className="min-h-11 rounded-xl border border-stone-300 bg-[#faf5ef] px-4 py-2 text-xs font-semibold uppercase text-stone-700 transition-colors motion-reduce:transition-none hover:bg-[#f3ebe1] disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Clear all</button>
           {isFinished && completedCount > 0 && (
-            <button type="button" onClick={onExportZip} className="min-h-11 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors motion-reduce:transition-none hover:from-rose-700 hover:to-pink-700">Export {completedCount} as ZIP</button>
+            <button type="button" onClick={onExportZip} aria-describedby={zipHelpId} className="min-h-11 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors motion-reduce:transition-none hover:from-rose-700 hover:to-pink-700">Export {completedCount} as ZIP</button>
           )}
           {(!isFinished || errorCount > 0) && (
             <button
@@ -55,6 +58,12 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
         </div>
       </div>
 
+      {completedCount > 0 && (
+        <p id={zipHelpId} className="rounded-xl bg-stone-100/80 px-3 py-2 text-xs text-stone-700 dark:bg-slate-800/70 dark:text-slate-300">
+          The ZIP contains the {completedCount} completed SVG file{completedCount === 1 ? '' : 's'} in this queue.
+        </p>
+      )}
+
       <ul aria-describedby={statusId} className="max-h-96 space-y-2 overflow-y-auto pr-1">
         {items.map((item) => {
           const previewId = `batch-preview-${item.id}`;
@@ -70,7 +79,7 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {item.status === 'processing' && <progress aria-label={`Processing ${item.name}`} max={100} value={item.progress} className="h-2 w-28 accent-pink-600">{item.progress}%</progress>}
+                  {item.status === 'processing' && <progress aria-label={`Processing ${item.name}`} aria-valuetext={`${item.progress}% complete`} max={100} value={item.progress} className="h-2 w-28 accent-pink-600">{item.progress}%</progress>}
                   {(item.svgResult || item.previewUrl) && <button type="button" onClick={() => setExpandedId((value) => value === item.id ? null : item.id)} aria-expanded={expanded} aria-controls={previewId} className="min-h-11 rounded-lg px-3 py-2 text-xs font-semibold text-rose-700 transition-colors motion-reduce:transition-none hover:bg-rose-100/60 dark:text-sky-300 dark:hover:bg-slate-800">{expanded ? 'Hide preview' : 'Preview'}</button>}
                   <button type="button" onClick={() => onRemoveItem(item.id)} disabled={isProcessing} aria-label={`Remove ${item.name} from batch queue`} className="min-h-11 min-w-11 rounded-lg p-2 text-stone-500 transition-colors motion-reduce:transition-none hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"><svg className="mx-auto h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                 </div>

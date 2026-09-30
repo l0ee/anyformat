@@ -312,7 +312,7 @@ describe('TraceWorkerClient', () => {
     expect(controller).toBeDefined();
     expect(internals.pendingRequests.size).toBe(0);
     expect(createObjectURL).toHaveBeenCalledOnce();
-    expect(image.src).toBe('blob:pending-image');
+    await vi.waitFor(() => expect(image.src).toBe('blob:pending-image'));
     const removeAbortListener = vi.spyOn(controller.signal, 'removeEventListener');
     const rejection = expect(request).rejects.toThrow('Trace worker client was terminated.');
 
@@ -430,6 +430,40 @@ describe('TraceWorkerClient', () => {
     const internals = client as unknown as ClientInternals;
     expect(internals.pendingRequests.size).toBe(0);
     expect(internals.pendingQueue).toHaveLength(0);
+  });
+
+  it('settles queued work when an unexpected response cannot replace the worker', async () => {
+    const client = new TraceWorkerClient();
+    const worker = createWorker();
+    configureWorkers(client, [worker]);
+    vi.stubGlobal('Worker', vi.fn(() => { throw new Error('Unavailable'); }));
+
+    const active = client.traceMonochrome(createImageData());
+    const queued = client.traceColor(createImageData());
+    sendResult(worker, { id: 'stale', status: 'success', result: createResult() });
+
+    await expect(active).resolves.toBeDefined();
+    await expect(queued).resolves.toBeDefined();
+    expect((client as unknown as ClientInternals).pendingRequests.size).toBe(0);
+  });
+
+  it.each(['abort', 'terminate'])('cancels scheduled fallback on %s', async (action) => {
+    vi.useFakeTimers();
+    const client = new TraceWorkerClient();
+    const worker = createWorker();
+    configureWorkers(client, [worker]);
+    const controller = new AbortController();
+    const request = client.traceMonochrome(createImageData(), {}, controller.signal);
+    sendResult(worker, { id: firstTask(worker).id, status: 'error', error: 'failed' });
+    const rejection = expect(request).rejects.toThrow(action === 'abort' ? /abort/i : /terminated/i);
+
+    if (action === 'abort') controller.abort();
+    else client.terminate();
+
+    await rejection;
+    expect(vi.getTimerCount()).toBe(0);
+    expect((client as unknown as ClientInternals).pendingRequests.size).toBe(0);
+    client.terminate();
   });
 
   it('removes dead worker from pool and disables workers when replacement fails', async () => {

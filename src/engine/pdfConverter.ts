@@ -1,5 +1,3 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocument } from 'pdf-lib';
 import { rasterizeSvgToBlob } from './svgRasterizer';
 import { traceWorkerClient } from '../workers/traceWorkerClient';
 import { optimizeSvg } from './svgOptimizer';
@@ -10,17 +8,21 @@ import {
   assertCanvasDimensionsWithinBudget,
 } from './canvasLimits';
 
-// Configure pdfjs worker for Vite environment
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url
-).toString();
+async function loadPdfRenderer() {
+  const pdfjsLib = await import('pdfjs-dist');
+  // Configure the worker only when a PDF is actually opened.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.mjs',
+    import.meta.url
+  ).toString();
+  return pdfjsLib;
+}
 
 /**
  * Returns the total page count for a given PDF file.
  */
 export async function getPdfPageCount(file: File): Promise<number> {
-  const arrayBuffer = await file.arrayBuffer();
+  const [pdfjsLib, arrayBuffer] = await Promise.all([loadPdfRenderer(), file.arrayBuffer()]);
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   try {
     const pdfDoc = await loadingTask.promise;
@@ -46,7 +48,7 @@ export async function convertPdfToImage(
   targetExt: string,
   pageNumber: number = 1
 ): Promise<Blob> {
-  const arrayBuffer = await file.arrayBuffer();
+  const [pdfjsLib, arrayBuffer] = await Promise.all([loadPdfRenderer(), file.arrayBuffer()]);
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   try {
     const pdfDoc = await loadingTask.promise;
@@ -160,6 +162,7 @@ export async function convertPdfToSvg(file: File, pageNumber: number = 1): Promi
  * Converts an Image (File or Blob) to PDF using pdf-lib.
  */
 export async function convertImageToPdf(file: File | Blob): Promise<Blob> {
+  const { PDFDocument } = await import('pdf-lib');
   const pdfDoc = await PDFDocument.create();
   if (typeof pdfDoc.setTitle === 'function') {
     pdfDoc.setTitle('Converted with AnyFormat');

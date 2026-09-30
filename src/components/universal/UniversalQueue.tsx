@@ -1,9 +1,10 @@
-import React, { useId, useState, useEffect, useRef } from 'react';
+import React, { useId, useState, useEffect, useRef, useMemo } from 'react';
 import { getCommonExportTargets, SUPPORTED_FORMATS, UniversalTaskItem } from '../../engine/universal/types';
-import { filterUniversalTasks, UniversalFilterOptions } from '../../engine/universal/universalFilter';
+import { DEFAULT_QUEUE_FILTERS, hasQueueFilters, filterUniversalTasks, UniversalFilterOptions } from '../../engine/universal/universalFilter';
 import { calculateUniversalBatchMetrics, copyResultToClipboard } from '../../utils/universalResultUtils';
 import { convertPdfToImage } from '../../engine/pdfConverter';
 import { Download, ArrowRight, RefreshCw, Trash2, Layers, ShieldCheck, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { QueueFilters } from './QueueFilters';
 
 const PdfSourcePagePreview: React.FC<{
   file: File;
@@ -123,28 +124,37 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
-  const [filterOpts, setFilterOpts] = useState<UniversalFilterOptions>({
-    statusFilter: 'all',
-    categoryFilter: 'all',
-    searchQuery: '',
-  });
+  const [filterOpts, setFilterOpts] = useState<UniversalFilterOptions>(DEFAULT_QUEUE_FILTERS);
 
   const headingId = useId();
   const statusId = useId();
   const globalTargetId = useId();
-  const searchInputId = useId();
-  const statusFilterId = useId();
-  const categoryFilterId = useId();
-  const sortByFilterId = useId();
+  const zipHelpId = useId();
 
   const isSingle = items.length === 1;
-  const filteredItems = isSingle ? items : filterUniversalTasks(items, filterOpts);
-  const completedCount = items.filter((item) => item.status === 'completed').length;
-  const errorCount = items.filter((item) => item.status === 'error').length;
-  const idleCount = items.filter((item) => item.status === 'idle').length;
+  const filteredItems = useMemo(
+    () => filterUniversalTasks(items, filterOpts),
+    [items, filterOpts]
+  );
+  const { counts, completedOutputFormats, commonTargets, batchMetrics } = useMemo(() => {
+    const counts = { idle: 0, processing: 0, completed: 0, error: 0 };
+    const outputFormats = new Set<string>();
+    const sourceExtensions: string[] = [];
+    for (const item of items) {
+      counts[item.status]++;
+      sourceExtensions.push(item.sourceExt);
+      if (item.status === 'completed') outputFormats.add(item.targetExt.toUpperCase());
+    }
+    return {
+      counts,
+      completedOutputFormats: [...outputFormats],
+      commonTargets: getCommonExportTargets(sourceExtensions),
+      batchMetrics: calculateUniversalBatchMetrics(items),
+    };
+  }, [items]);
+  const { completed: completedCount, error: errorCount, idle: idleCount, processing: processingCount } = counts;
   const hasIdle = idleCount > 0;
-  const commonTargets = getCommonExportTargets(items.map((item) => item.sourceExt));
-  const batchMetrics = calculateUniversalBatchMetrics(items);
+  const sharedTarget = items.every((item) => item.targetExt === items[0]?.targetExt) ? items[0]?.targetExt || '' : '';
   const globalTargetHelp = completedCount > 0
     ? 'Global changes are unavailable after a conversion completes. Choose formats per file before converting.'
     : commonTargets.length === 0
@@ -185,12 +195,12 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
               ) : items[0].status === 'error' ? (
                 'Conversion failed'
               ) : items[0].status === 'processing' ? (
-                'Converting...'
+                'Converting…'
               ) : (
                 'Ready to convert'
               )
             ) : (
-              `${completedCount} completed${errorCount ? `, ${errorCount} failed` : ''} of ${items.length}`
+              `${idleCount} ready · ${processingCount} processing · ${completedCount} completed · ${errorCount} failed`
             )}
             {batchMetrics.percentageReduction > 0 && (
               <span className="ml-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
@@ -201,18 +211,18 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {items.length > 0 && (
+          {!isSingle && items.length > 0 && (
             <div>
               <label htmlFor={globalTargetId} className="mb-1 block text-xs font-semibold text-stone-600 dark:text-slate-300">Convert all to</label>
               <select
                 id={globalTargetId}
                 onChange={(event) => event.target.value && onApplyAllTargetFormat(event.target.value)}
-                defaultValue=""
+                value={commonTargets.includes(sharedTarget) ? sharedTarget : ''}
                 disabled={isProcessing || commonTargets.length === 0 || completedCount > 0}
                 aria-describedby={globalTargetHelp ? `${globalTargetId}-help` : undefined}
                 className="min-h-11 rounded-xl border border-stone-300/80 bg-stone-50/90 px-3 py-2 text-sm font-bold text-pink-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-pink-300"
               >
-                <option value="" disabled>Select format</option>
+                <option value="" disabled>Mixed formats</option>
                 {commonTargets.map((ext) => <option key={ext} value={ext}>.{ext.toUpperCase()}</option>)}
               </select>
               {globalTargetHelp && <p id={`${globalTargetId}-help`} className="mt-1 max-w-56 text-xs text-amber-700 dark:text-amber-300">{globalTargetHelp}</p>}
@@ -224,6 +234,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                 type="button"
                 onClick={onRetryFailed}
                 disabled={isProcessing}
+                aria-label="Retry failed conversions in the format conversion queue"
                 className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-rose-300/80 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
@@ -236,7 +247,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
               )}
             </div>
           )}
-          {completedCount > 0 && onClearCompleted && (
+          {!isSingle && completedCount > 0 && onClearCompleted && (
             <button
               type="button"
               onClick={onClearCompleted}
@@ -250,7 +261,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
             type="button"
             onClick={onClearQueue}
             disabled={isProcessing}
-            aria-label="Clear all"
+            aria-label="Clear all files from the format conversion queue"
             className="min-h-11 rounded-xl px-4 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100/60 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
           >
             {isSingle ? 'Clear file' : 'Clear all'}
@@ -258,86 +269,37 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
         </div>
       </div>
 
-      {items.length > 2 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-stone-200/90 bg-stone-100/70 p-3 dark:border-slate-800 dark:bg-slate-800/40">
-          <div className="flex-1 min-w-[180px]">
-            <label htmlFor={searchInputId} className="sr-only">Search queue</label>
-            <input
-              id={searchInputId}
-              type="text"
-              placeholder="Search queued files..."
-              value={filterOpts.searchQuery}
-              onChange={(e) => setFilterOpts((prev) => ({ ...prev, searchQuery: e.target.value }))}
-              className="w-full rounded-xl border border-stone-300/80 bg-stone-50/90 px-3 py-1.5 text-xs font-medium text-stone-900 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor={statusFilterId} className="sr-only">Filter by status</label>
-            <select
-              id={statusFilterId}
-              value={filterOpts.statusFilter}
-              onChange={(e) => setFilterOpts((prev) => ({ ...prev, statusFilter: e.target.value as UniversalFilterOptions['statusFilter'] }))}
-              className="rounded-xl border border-stone-300/80 bg-stone-50/90 px-2.5 py-1.5 text-xs font-semibold text-stone-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-            >
-              <option value="all">All status</option>
-              <option value="idle">Idle</option>
-              <option value="processing">Processing</option>
-              <option value="completed">Completed</option>
-              <option value="error">Failed</option>
-            </select>
-            <label htmlFor={categoryFilterId} className="sr-only">Filter by category</label>
-            <select
-              id={categoryFilterId}
-              value={filterOpts.categoryFilter}
-              onChange={(e) => setFilterOpts((prev) => ({ ...prev, categoryFilter: e.target.value as UniversalFilterOptions['categoryFilter'] }))}
-              className="rounded-xl border border-stone-300/80 bg-stone-50/90 px-2.5 py-1.5 text-xs font-semibold text-stone-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-            >
-              <option value="all">All categories</option>
-              <option value="image">Images</option>
-              <option value="vector">Vectors</option>
-              <option value="document">Documents</option>
-            </select>
-            <label htmlFor={sortByFilterId} className="sr-only">Sort queue</label>
-            <select
-              id={sortByFilterId}
-              value={filterOpts.sortBy || 'default'}
-              onChange={(e) => setFilterOpts((prev) => ({ ...prev, sortBy: e.target.value as UniversalFilterOptions['sortBy'] }))}
-              className="rounded-xl border border-stone-300/80 bg-stone-50/90 px-2.5 py-1.5 text-xs font-semibold text-stone-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-            >
-              <option value="default">Default order</option>
-              <option value="name">Name (A-Z)</option>
-              <option value="size">File size</option>
-              <option value="status">Status</option>
-            </select>
-          </div>
-        </div>
+      {(items.length > 2 || hasQueueFilters(filterOpts)) && (
+        <QueueFilters value={filterOpts} onChange={setFilterOpts} visibleCount={filteredItems.length} totalCount={items.length} />
       )}
 
       {filteredItems.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-stone-300 p-8 text-center text-xs font-semibold text-stone-500 dark:border-slate-700 dark:text-slate-400">
-          No queued files match your search and filter criteria.
+          No files match. Reset filters or try another search.
+          <button type="button" onClick={() => setFilterOpts(DEFAULT_QUEUE_FILTERS)} className="mx-auto mt-3 block min-h-11 rounded-xl px-4 text-rose-700 hover:bg-rose-100 dark:text-rose-300 dark:hover:bg-slate-800">Show all files</button>
         </div>
       ) : (
-        <ul aria-describedby={statusId} className="max-h-[450px] space-y-3 overflow-y-auto pr-1 sm:pr-2">
+        <ul aria-describedby={statusId} className="max-h-[450px] space-y-2 overflow-y-auto pr-1 sm:pr-2">
           {filteredItems.map((item) => {
             const spec = SUPPORTED_FORMATS[item.sourceExt];
             const targetId = `target-${item.id}`;
+            const pageHelpId = `page-help-${item.id}`;
             const previewId = `universal-preview-${item.id}`;
             const expanded = expandedId === item.id;
             return (
-              <li key={item.id} className="rounded-2xl border border-stone-200/90 bg-[#fdfbf9]/90 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <li key={item.id} className="hover-surface rounded-2xl border border-stone-200/90 bg-[#fdfbf9]/90 p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     {item.previewUrl ? (
-                      <img src={item.previewUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-stone-200 object-cover dark:border-slate-700" />
+                      <img src={item.previewUrl} alt="" width={44} height={44} loading="lazy" className="h-11 w-11 shrink-0 rounded-xl border border-stone-200 object-cover dark:border-slate-700" />
                     ) : (
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-xs font-bold uppercase text-rose-600 dark:bg-rose-500/20 dark:text-rose-300">
                         .{item.sourceExt}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <h4 className="truncate text-sm font-bold text-stone-900 dark:text-white">{item.name}</h4>
-                      <p className="text-xs text-stone-600 dark:text-slate-400">
+                      <h4 title={item.name} className="truncate text-sm font-bold text-stone-900 dark:text-white">{item.name}</h4>
+                      <p className="break-words text-xs tabular-nums text-stone-600 dark:text-slate-400">
                         {(item.file.size / 1024).toFixed(1)} KB · {spec.label}
                         {item.resultSize !== undefined && (
                           <>
@@ -368,38 +330,42 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
 
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     {item.sourceExt === 'pdf' && (
-                      <div className="flex items-center gap-1.5">
-                        <label
-                          htmlFor={`page-${item.id}`}
-                          className="text-xs font-semibold text-stone-600 dark:text-slate-300"
-                        >
-                          Page
-                        </label>
-                        <input
-                          id={`page-${item.id}`}
-                          type="number"
-                          aria-label={`PDF page for ${item.name}`}
-                          min={1}
-                          max={item.pageCount || 1}
-                          value={item.pageNumber || 1}
-                          disabled={isProcessing || item.status === 'completed'}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            const max = item.pageCount || 1;
-                            const clamped = Math.max(1, Math.min(max, val || 1));
-                            onPageNumberChange?.(item.id, clamped);
-                          }}
-                          className="min-h-11 w-16 rounded-xl border border-stone-300/80 bg-white/90 px-2.5 py-2 text-center text-sm font-bold text-stone-800 transition focus:border-rose-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        />
-                        {item.pageCount !== undefined ? (
+                      <div className="flex w-full flex-col gap-2 rounded-xl bg-stone-100/70 p-2.5 sm:w-auto sm:flex-row sm:items-center dark:bg-slate-900/60">
+                        <div className="flex items-center gap-1.5">
+                          <label
+                            htmlFor={`page-${item.id}`}
+                            className="text-xs font-semibold text-stone-600 dark:text-slate-300"
+                          >
+                            PDF page
+                          </label>
+                          <input
+                            id={`page-${item.id}`}
+                            aria-label={`PDF page for ${item.name}`}
+                            name={`page-${item.id}`}
+                            autoComplete="off"
+                            type="number"
+                            min={1}
+                            max={item.pageCount || 1}
+                            value={item.pageNumber || 1}
+                            disabled={isProcessing || item.status === 'completed' || item.pageCount === undefined}
+                            aria-describedby={pageHelpId}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              const max = item.pageCount || 1;
+                              const clamped = Math.max(1, Math.min(max, val || 1));
+                              onPageNumberChange?.(item.id, clamped);
+                            }}
+                            className="min-h-11 w-16 rounded-xl border border-stone-300/80 bg-white/90 px-2.5 py-2 text-center text-sm font-bold text-stone-800 transition focus:border-rose-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                          />
                           <span className="text-xs font-medium text-stone-500 dark:text-slate-400">
-                            / {item.pageCount}
+                            {item.pageCount === undefined ? 'Reading PDF pages…' : `of ${item.pageCount}`}
                           </span>
-                        ) : (
-                          <span className="text-xs font-medium text-stone-500 dark:text-slate-400">
-                            Reading PDF pages…
-                          </span>
-                        )}
+                        </div>
+                        <p id={pageHelpId} className="sr-only">
+                          {item.pageCount === undefined
+                            ? 'The page selector will be available after the document is read.'
+                            : 'Choose one page to convert. Use the Up and Down Arrow keys to change it.'}
+                        </p>
                         <PdfSourcePagePreview
                           file={item.file}
                           fileName={item.name}
@@ -415,6 +381,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                       <select
                         id={targetId}
                         aria-label={`Output for ${item.name}`}
+                        aria-describedby={item.sourceExt === 'pdf' && item.targetExt === 'svg' ? `${targetId}-note` : undefined}
                         value={item.targetExt}
                         onChange={(event) => onTargetFormatChange(item.id, event.target.value)}
                         disabled={isProcessing || item.status === 'completed'}
@@ -425,6 +392,12 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                         ))}
                       </select>
                     </div>
+
+                    {item.sourceExt === 'pdf' && item.targetExt === 'svg' && (
+                      <p id={`${targetId}-note`} className="basis-full text-xs text-stone-600 dark:text-slate-300">
+                        PDF to SVG redraws the selected page as shapes. Text is not editable, and fine details may change.
+                      </p>
+                    )}
 
                     {onOpenInStudio && item.targetExt === 'svg' && ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'].includes(item.sourceExt) && (
                       <button
@@ -440,6 +413,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                     {item.status === 'processing' && (
                       <progress
                         aria-label={`Converting ${item.name}`}
+                        aria-valuetext={`${item.progress}% complete`}
                         max={100}
                         value={item.progress}
                         className="h-2 w-24 accent-rose-600"
@@ -448,7 +422,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                       </progress>
                     )}
 
-                    {item.status === 'completed' && (
+                    {!isSingle && item.status === 'completed' && (
                       <div className="flex items-center gap-2">
                         {(item.targetExt === 'svg' || item.resultBlob?.type === 'image/svg+xml') && (
                           <button
@@ -473,16 +447,17 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                         <button
                           type="button"
                           onClick={() => onDownloadItem(item.id)}
+                          aria-label={`Download ${item.resultFilename || `${item.name.replace(/\.[^/.]+$/, '')}.${item.targetExt}`}`}
                           className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
                         >
                           <Download className="h-3.5 w-3.5" />
-                          Download {item.name.replace(/\.[^/.]+$/, '')}.{item.targetExt}
+                          Download
                         </button>
                       </div>
                     )}
 
                     {item.status === 'error' && (
-                      <span role="alert" className="self-center text-xs font-bold text-rose-700 dark:text-rose-300">
+                      <span role="alert" className="min-w-0 break-words self-center text-xs font-bold text-rose-700 dark:text-rose-300">
                         Failed: {item.error || 'Conversion failed'}
                       </span>
                     )}
@@ -590,7 +565,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                     type="button"
                     onClick={() => handleCopySvg(items[0])}
                     aria-label="Copy SVG code to clipboard"
-                    className="min-h-12 inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white/90 px-6 py-2.5 text-xs font-bold text-stone-700 transition-all hover:bg-stone-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                    className="min-h-12 inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white/90 px-6 py-2.5 text-xs font-bold text-stone-700 transition-colors hover:bg-stone-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                   >
                     {copiedItemId === items[0].id ? (
                       <>
@@ -608,7 +583,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                 <button
                   type="button"
                   onClick={() => onDownloadItem(items[0].id)}
-                  aria-label={`Download ${items[0].name.replace(/\.[^/.]+$/, '')}.${items[0].targetExt}`}
+                  aria-label={`Download ${items[0].resultFilename || `${items[0].name.replace(/\.[^/.]+$/, '')}.${items[0].targetExt}`}`}
                   className="min-h-12 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition-transform hover:scale-[1.02]"
                 >
                   <Download className="h-4 w-4" />
@@ -626,7 +601,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                 {isProcessing ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    Converting ({items[0].progress}%)...
+                    Converting ({items[0].progress}%)…
                   </>
                 ) : (
                   <>
@@ -643,6 +618,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                 <button
                   type="button"
                   onClick={onExportZip}
+                  aria-describedby={zipHelpId}
                   className="min-h-12 inline-flex items-center gap-2 rounded-full border border-stone-300 bg-[#faf5ef] px-5 py-2.5 text-xs font-bold text-stone-800 transition-colors hover:bg-[#f3ebe1] dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <Download className="h-4 w-4" />
@@ -668,7 +644,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                   {isProcessing ? (
                     <>
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      Converting files...
+                      Converting files…
                     </>
                   ) : !hasIdle && errorCount ? (
                     'Retry failed files'
@@ -681,6 +657,11 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                 </button>
               )}
             </>
+          )}
+          {!isSingle && completedCount > 0 && (
+            <p id={zipHelpId} className="basis-full text-xs text-stone-600 dark:text-slate-400">
+              ZIP includes {completedCount} completed file{completedCount === 1 ? '' : 's'} ({completedOutputFormats.join(', ')}) currently in this queue.
+            </p>
           )}
         </div>
       </div>

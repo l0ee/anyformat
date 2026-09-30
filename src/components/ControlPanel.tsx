@@ -83,7 +83,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('mono-despeckle')}>Despeckle (Speckle Suppression)</label>
+              <label htmlFor={controlId('mono-despeckle')}>Remove small specks</label>
               <output id={controlId('mono-despeckle-value')} htmlFor={controlId('mono-despeckle')} className="font-mono text-pink-600 dark:text-pink-400">{monoOpts.turdSize ?? 2} px</output>
             </div>
             <input
@@ -100,7 +100,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('mono-alpha')}>Corner Threshold (Alpha Max)</label>
+              <label htmlFor={controlId('mono-alpha')}>Corner smoothing</label>
               <output id={controlId('mono-alpha-value')} htmlFor={controlId('mono-alpha')} className="font-mono text-pink-600 dark:text-pink-400">{monoOpts.alphaMax ?? 1.0}</output>
             </div>
             <input
@@ -118,7 +118,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('mono-tolerance')}>Curve Optimization Tolerance</label>
+              <label htmlFor={controlId('mono-tolerance')}>Curve simplification</label>
               <output id={controlId('mono-tolerance-value')} htmlFor={controlId('mono-tolerance')} className="font-mono text-pink-600 dark:text-pink-400">{monoOpts.optTolerance ?? 0.2}</output>
             </div>
             <input
@@ -196,7 +196,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('color-despeckle')}>Speckle Suppression (Turd Size)</label>
+              <label htmlFor={controlId('color-despeckle')}>Remove small specks</label>
               <output id={controlId('color-despeckle-value')} htmlFor={controlId('color-despeckle')} className="font-mono text-pink-600 dark:text-pink-400">{colorOpts.turdSize ?? 2} px</output>
             </div>
             <input
@@ -213,7 +213,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('color-alpha')}>Corner Alpha Max</label>
+              <label htmlFor={controlId('color-alpha')}>Corner smoothing</label>
               <output id={controlId('color-alpha-value')} htmlFor={controlId('color-alpha')} className="font-mono text-pink-600 dark:text-pink-400">{colorOpts.alphaMax ?? 1.0}</output>
             </div>
             <input
@@ -231,7 +231,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('color-tolerance')}>Curve Optimization Tolerance</label>
+              <label htmlFor={controlId('color-tolerance')}>Curve simplification</label>
               <output id={controlId('color-tolerance-value')} htmlFor={controlId('color-tolerance')} className="font-mono text-pink-600 dark:text-pink-400">{colorOpts.optTolerance ?? 0.2}</output>
             </div>
             <input

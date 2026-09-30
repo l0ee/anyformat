@@ -1,11 +1,10 @@
-import JSZip from 'jszip';
-
 export interface ZipExportItem {
   filename: string;
   content: string | Blob | ArrayBuffer;
 }
 
 export async function exportBatchZip(items: ZipExportItem[]): Promise<Blob> {
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const reserved = new Set(items.map((i) => i.filename));
   const usedNames = new Set<string>();

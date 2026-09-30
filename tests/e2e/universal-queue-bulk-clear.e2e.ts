@@ -42,7 +42,7 @@ test('clears completed conversions, preserves other work, and releases completed
   await page.getByRole('button', { name: /Convert all files/ }).click();
   await expect(page.getByText(/^Failed:/)).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Retry failed files' }).first().click();
-  await expect(page.getByText('1 completed, 1 failed of 2')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('region', { name: 'Format conversion queue (2)' }).getByRole('status')).toContainText('0 ready · 0 processing · 1 completed · 1 failed', { timeout: 60_000 });
 
   const completedItem = page.locator('li').filter({ hasText: 'completed.svg' });
   await completedItem.getByRole('button', { name: 'Preview' }).click();
@@ -67,7 +67,7 @@ test('clears completed conversions, preserves other work, and releases completed
   await page.getByRole('button', { name: /Convert all files/ }).click();
   await expect(page.getByRole('progressbar', { name: 'Converting processing.svg' })).toBeVisible();
   await expect(clearCompleted).toBeDisabled();
-  await expect(page.getByText('2 completed, 1 failed of 3')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('region', { name: 'Format conversion queue (3)' }).getByRole('status')).toContainText('0 ready · 0 processing · 2 completed · 1 failed', { timeout: 60_000 });
 
   await fileInput.setInputFiles({
     name: 'idle.svg',
