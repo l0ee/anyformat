@@ -1,33 +1,40 @@
-# AnyFormat — Universal File Converter
+# AnyFormat
+
+**Image and PDF conversion. SVG tools. All in your browser.**
 
 [![CI](https://github.com/l0ee/anyformat/actions/workflows/ci.yml/badge.svg)](https://github.com/l0ee/anyformat/actions/workflows/ci.yml)
 
-AnyFormat is a browser-based React application for converting image formats and tracing raster images into SVG paths. It supports monochrome and layered-color output, an original/result comparison, palette adjustments, SVG markup cleanup, raster re-export, and batch ZIP downloads. All conversion paths run locally in the browser.
+AnyFormat helps you change image formats, turn pictures into SVG graphics, and export individual PDF pages. Preview your results, adjust the settings, and download one file or a batch. Your files are processed on your device and are never uploaded to a conversion server.
 
-> Product description: an accessible, browser-based raster-to-SVG vectorizer and image-format converter with single-file and batch workflows. It uses browser APIs locally and does not include a file-upload backend.
+[Open AnyFormat](https://l0ee.github.io/anyformat/) · [Report a problem](https://github.com/l0ee/anyformat/issues) · [Contribute](CONTRIBUTING.md)
 
-## What it does
+## Choose the right workspace
 
-- **Raster-to-SVG tracing:** load PNG, JPEG, WebP, BMP, or GIF images and create monochrome or layered-color SVG output.
-- **Trace controls:** adjust threshold, inversion, speckle suppression, curve smoothing, color count, and maximum trace resolution.
-- **Color workflows:** create color layers with K-means quantization, inspect the extracted palette, and replace colors in the generated SVG.
-- **Preview and export:** compare the original and traced result, inspect or copy the SVG markup, download SVG, or rasterize the result to PNG or WebP at 1x, 2x, or 4x.
-- **SVG cleanup:** remove comments and metadata, round path coordinates, shorten eligible hex colors, and optionally minify whitespace.
-- **Batch tracing:** process multiple raster images with shared settings and download completed SVG files in a ZIP archive.
-- **Format conversion:** convert supported raster images between PNG, JPEG, and WebP, trace raster images to SVG, or rasterize SVG files. Exact decoder and encoder support depends on the browser.
-- **Browser execution:** tracing and conversion use browser file, image, canvas, and Web Worker APIs. This repository does not implement a file-upload endpoint.
+| Workspace | What you can do |
+| --- | --- |
+| **Format Converter** | Convert supported images, SVG files, and PDF pages. Choose an output for each file, preview results, and download completed files. |
+| **Vector Studio** | Turn a picture into an SVG: a graphic made from shapes and curves that can scale without losing sharpness. Adjust colors and detail, then compare the result with the original. |
+| **Vector Batch** | Turn several pictures into SVG files using the same settings, then download the results together in a ZIP file. |
 
-Universal conversions enforce a 100 MB per-file limit to protect client-side memory. Practical vector trace limits depend on the selected trace resolution and browser memory.
+## How to use it
 
-## Tech stack
+1. **Add your files.** Choose files, drag them into the upload area, or paste a supported image from your clipboard.
+2. **Choose your output.** Pick a format in Format Converter, or adjust the tracing settings in Vector Studio. For PDFs, choose the page you want to convert.
+3. **Preview and download.** Check the result, download a file, or export completed batch results as a ZIP.
 
-- React 18 and TypeScript
-- Vite 6
-- Tailwind CSS and Lucide React
-- JSZip for batch archives
-- Canvas Confetti for interface feedback
+## Features
 
-## Supported format-conversion paths
+- **Image and PDF conversion:** work with PNG, JPEG, WebP, BMP, SVG, and PDF files using the supported paths below.
+- **Editable SVG output:** create black-and-white or color graphics, adjust the level of detail, and edit the color palette.
+- **Before-and-after previews:** compare the source with the result and use the fullscreen view for a closer look.
+- **SVG tools:** inspect or copy SVG code, remove unnecessary metadata, and simplify the output.
+- **Flexible exports:** download SVG files, export traced results as PNG or WebP at different sizes, or collect completed files in a ZIP.
+- **Batch workflows:** use shared tracing settings, choose formats per file, and retry failed conversions.
+- **Accessible controls:** keyboard shortcuts, labeled inputs, responsive layouts, and light and dark themes.
+
+## Supported formats
+
+### Format Converter
 
 | Input | Available outputs |
 | --- | --- |
@@ -38,16 +45,26 @@ Universal conversions enforce a 100 MB per-file limit to protect client-side mem
 | SVG | PNG, JPEG, WebP, PDF |
 | PDF | PNG, JPEG, WebP, SVG |
 
-All conversions run 100% client-side in the browser. Decoder support can vary between browsers. Unsupported format paths (such as ICO) remain unexposed pending verified in-browser codec support.
+### Vector Studio and Vector Batch
 
-## Local development
+These workspaces accept **PNG, JPEG, WebP, BMP, and GIF** images for SVG tracing. GIF is not offered in Format Converter.
 
-### Prerequisites
+### What to expect
 
-- A current Node.js LTS release
-- npm
+- **PDF conversion works one selected page at a time.** PDF-to-SVG creates a traced version of the rendered page; it does not preserve the original text or vector objects.
+- **SVG tracing redraws a picture as shapes.** Simple logos and illustrations usually need less tuning than detailed photos. Results depend on your image and settings.
+- **Files are limited to 100 MB each.** Batch queues hold up to 100 files. Large images may be resized to stay within browser memory limits.
+- **Browser support can vary.** A format listed here may still depend on your browser's image decoder or encoder. Unsupported paths, including ICO conversion, are not offered.
 
-Clone and install the project:
+The supported-format definitions are maintained in [`src/engine/universal/types.ts`](src/engine/universal/types.ts).
+
+## Privacy
+
+Image processing and conversion run locally in your browser. AnyFormat has no file-upload backend, and it does not send your source files to a conversion service. The website still loads its application files and fonts when you open it.
+
+## Run locally
+
+Use **Node.js 22** and **npm 10**, as specified in `package.json`.
 
 ```bash
 git clone https://github.com/l0ee/anyformat.git
@@ -56,68 +73,58 @@ npm ci
 npm run dev
 ```
 
-Install Playwright browsers once before running end-to-end tests:
+Open the local address printed by Vite.
+
+### Build and serve
+
+```bash
+npm run build
+npm start
+```
+
+The production build is written to `dist`. The included server runs at **http://localhost:8080** by default.
+
+## Development and testing
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development server. |
+| `npm run typecheck` | Check TypeScript types. |
+| `npm run lint` | Check code style and common mistakes. |
+| `npm test` | Run unit tests. |
+| `npm run test:e2e` | Run browser tests in Chromium, Firefox, and WebKit. |
+| `npm run build` | Create the production site. |
+
+Install the test browsers before running the browser suite:
 
 ```bash
 npx playwright install chromium firefox webkit
 ```
 
-On Debian or Ubuntu, use `npx playwright install --with-deps chromium firefox webkit` if the browser system libraries are missing.
+On Debian or Ubuntu, add `--with-deps` if browser system libraries are missing. To run only Chromium, use `npx playwright test --project=chromium`.
 
-Create a feature branch before making changes:
+Tests cover conversion paths, tracing, file limits, previews, queue behavior, accessibility, and the production server. New formats should have verified conversion paths before they are advertised.
 
-```bash
-git switch -c feature/short-description
-```
+## Built with
 
-Create a production build:
-
-```bash
-npm run build
-```
-
-Run the same checks used by continuous integration:
-
-```bash
-npm run typecheck
-npm run lint
-npm test
-npm run test:e2e
-npm run build
-```
-
-The end-to-end suite exercises Chromium, Firefox, and WebKit projects. It checks responsive layout, batch uploader ordering, accessible upload rejection, and real PNG, JPEG, WebP, BMP, and SVG format-conversion paths. The unit suite covers the optimizer, format-support matrix, and production server; conversion-engine edge cases should be covered before adding new advertised formats.
-
-After building, serve the `dist` directory on `http://localhost:8080`:
-
-```bash
-npm start
-```
-
-Repository: [github.com/l0ee/anyformat](https://github.com/l0ee/anyformat)
+- **React 18 and TypeScript** for the interface and application logic.
+- **Vite 6 and Tailwind CSS** for development, builds, and styling.
+- **Browser Canvas and Web Workers** for image processing and background tracing.
+- **PDF.js and pdf-lib** for reading PDF pages and creating PDF files.
+- **JSZip** for batch downloads and **Lucide React** for interface icons.
 
 ## Deployment
 
-The production site is deployed through GitHub Pages at [l0ee.github.io/anyformat](https://l0ee.github.io/anyformat/). The repository uses GitHub Actions as its Pages source; a successful validation job on `main` is required before the generated `dist` artifact is deployed.
+The public site is hosted on [GitHub Pages](https://l0ee.github.io/anyformat/). GitHub Actions validates changes and deploys successful builds from `main`.
 
-Canonical, Open Graph, robots, and sitemap metadata use the configured Pages origin. For self-hosted builds, set `VITE_SITE_URL` to the public site URL.
+For another host, serve the generated `dist` folder and set `VITE_SITE_URL` to your public site address when building. Set `VITE_BASE_PATH` if the app will live under a subdirectory. The included Node server also supports self-hosting, with compression, caching, range requests, and security headers.
 
-The included Node server remains useful for local or self-hosted operation and provides compression, range requests, cache controls, MIME handling, and baseline security headers. GitHub Pages is the recommended public host for this static application.
+Website assets belong in `public`. Keep unused source artwork in the ignored `design-assets` directory.
 
-## Repository workflow
+## Contributing and support
 
-1. Create a branch from `main`.
-2. Make a focused change and run the typecheck and production build.
-3. Commit the source change without `node_modules`, `dist`, or local design assets.
-4. Push the branch and open a pull request.
-5. Merge only after the GitHub Actions checks pass.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution checklist and [SECURITY.md](SECURITY.md) for security reporting.
-
-## Asset publication
-
-Files required by the website are public by design: a visitor's browser must download them to display the interface. Unused source artwork belongs in the ignored `design-assets/` directory so Vite does not copy it into the production build and Git does not publish it accidentally.
+Have an idea or found a problem? [Open an issue](https://github.com/l0ee/anyformat/issues). For code changes, create a focused branch and follow [CONTRIBUTING.md](CONTRIBUTING.md). See [SECURITY.md](SECURITY.md) for security reports.
 
 ## License
 
-Licensed under the [MIT License](LICENSE).
+AnyFormat is released under the [MIT License](LICENSE).

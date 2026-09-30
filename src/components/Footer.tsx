@@ -22,7 +22,7 @@ export const Footer: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-stone-600 dark:text-slate-400 leading-relaxed">
-              AnyFormat is a browser-based file converter and SVG vectorizer. Processing uses browser file, image, canvas, and worker APIs.
+              Convert images and PDF pages, or turn pictures into SVG graphics. Everything is processed in your browser, so your files stay on your device.
             </p>
             <a href="https://github.com/l0ee" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-xs font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">GitHub profile: @l0ee</a>
           </section>
@@ -30,20 +30,20 @@ export const Footer: React.FC = () => {
           <section aria-labelledby="footer-vector-tools">
             <h2 id="footer-vector-tools" className="text-xs font-semibold uppercase tracking-wider text-stone-900 dark:text-slate-200 mb-3">Vector tools</h2>
             <ul className="space-y-2 text-xs">
-              <li>Monochrome and layered-color tracing</li>
-              <li>Original and SVG comparison</li>
-              <li>Palette editing and SVG code inspection</li>
-              <li>Batch SVG export in a ZIP archive</li>
+              <li>Black-and-white and color SVG graphics</li>
+              <li>Before-and-after comparison</li>
+              <li>Color editing and SVG code tools</li>
+              <li>Batch SVG downloads in a ZIP</li>
             </ul>
           </section>
 
           <section aria-labelledby="footer-format-tools">
             <h2 id="footer-format-tools" className="text-xs font-semibold uppercase tracking-wider text-stone-900 dark:text-slate-200 mb-3">Format tools</h2>
             <ul className="space-y-2 text-xs">
-              <li>PNG, JPEG, and WebP raster conversion</li>
-              <li>SVG rasterization</li>
-              <li>PNG and WebP re-export at multiple scales</li>
-              <li>Browser-dependent decoding and encoding</li>
+              <li>PNG, JPEG, and WebP image conversion</li>
+              <li>SVG-to-image and image-to-PDF exports</li>
+              <li>Selected PDF pages to images or SVG</li>
+              <li>PNG and WebP exports at different sizes</li>
             </ul>
           </section>
 

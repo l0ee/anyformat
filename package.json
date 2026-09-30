@@ -7,7 +7,7 @@
     "node": ">=22 <23",
     "npm": ">=10 <11"
   },
-  "description": "AnyFormat is a browser-based file converter and SVG vectorizer.",
+  "description": "Convert images and PDF pages, create SVG graphics, and export files directly in your browser. Your files stay on your device.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/l0ee/anyformat.git"
