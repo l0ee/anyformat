@@ -13,10 +13,10 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({ activeTab = 'universal' 
     : 'Precision Vector Studio';
 
   const description = activeTab === 'universal'
-    ? 'Convert images, vector graphics, and documents directly in your browser — private, fast, and local with zero server uploads.'
+    ? 'Convert images, SVG files, and PDF pages in your browser. Preview your results and download your files without uploading them to a server.'
     : activeTab === 'batch'
-    ? 'Apply uniform vectorization parameters across multiple raster files simultaneously, then export optimized SVG archives.'
-    : 'Trace bitmap images into mathematical Bézier vector paths with real-time curve optimization, speckle suppression, and color palette controls.';
+    ? 'Turn several images into SVG graphics using the same settings, then download the completed files together in a ZIP.'
+    : 'Turn a picture into an SVG graphic that scales clearly. Adjust colors and detail, compare the result, and download your finished design.';
 
   return (
     <section className="relative" aria-labelledby="page-heading">

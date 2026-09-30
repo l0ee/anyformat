@@ -1155,10 +1155,10 @@ export const App: React.FC = () => {
                   <ShieldCheck className="h-6 w-6" />
                 </div>
                 <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
-                  Client-Side Privacy
+                  Your Files Stay Local
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
-                  All conversions run locally in your browser sandbox using WebAssembly and HTML5 Canvas. Your documents and images are never uploaded to any remote server.
+                  Your images and documents are processed on your device. No source files are uploaded to a conversion server.
                 </p>
               </div>
 
@@ -1167,10 +1167,10 @@ export const App: React.FC = () => {
                   <Cpu className="h-6 w-6" />
                 </div>
                 <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
-                  Multi-Threaded Performance
+                  Built for Browser Workflows
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
-                  Dedicated Web Workers handle intensive image quantization, rasterization, and document processing off the main thread to keep UI interaction smooth.
+                  Browser tools handle conversion, while a background worker helps with image tracing. Work with one file or a batch and download completed results.
                 </p>
               </div>
 
@@ -1179,10 +1179,10 @@ export const App: React.FC = () => {
                   <Layers className="h-6 w-6" />
                 </div>
                 <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
-                  Vector Studio Integration
+                  Refine Your SVG
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
-                  Seamlessly jump from batch conversion into the integrated Vector Studio to fine-tune bezier curves, adjust color palettes, and inspect clean SVG markup.
+                  Open an image in Vector Studio to adjust colors and detail, compare it with the original, and inspect or copy the SVG code.
                 </p>
               </div>
             </section>
