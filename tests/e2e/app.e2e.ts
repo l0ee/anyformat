@@ -75,7 +75,7 @@ test('shows batch settings only after files are selected and below the uploader'
 
   const settings = page.getByRole('heading', { name: 'Batch settings' });
   await expect(settings).toBeVisible();
-  const uploaderBox = await page.getByRole('button', { name: /Drop your images here/ }).boundingBox();
+  const uploaderBox = await page.getByRole('group', { name: 'Drag images here or browse' }).boundingBox();
   const settingsBox = await settings.boundingBox();
   expect(uploaderBox).not.toBeNull();
   expect(settingsBox).not.toBeNull();
@@ -124,7 +124,7 @@ test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async 
   }
   await page.getByRole('button', { name: 'Convert all files' }).click();
 
-  await expect(page.getByText(`${paths.length} completed of ${paths.length}`)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('region', { name: `Format conversion queue (${paths.length})` }).getByRole('status')).toContainText(`0 ready · 0 processing · ${paths.length} completed · 0 failed`, { timeout: 60_000 });
   await expect(page.getByRole('button', { name: /^Download / })).toHaveCount(paths.length);
 });
 

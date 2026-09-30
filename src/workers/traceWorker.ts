@@ -1,5 +1,6 @@
 import { traceMonochromeFromImageData } from '../engine/monochromeTracer';
 import { traceColorFromImageData } from '../engine/colorTracer';
+import { restoreTraceDimensions } from './traceWorkerUtils';
 import { TraceWorkerTask, TraceWorkerResult, TraceResult, MonochromeOptions, ColorTracerOptions } from '../engine/types';
 
 const ctx: Worker = self as unknown as Worker;
@@ -14,14 +15,7 @@ ctx.onmessage = (e: MessageEvent<TraceWorkerTask>) => {
     if (type === 'monochrome') {
       result = traceMonochromeFromImageData(imageData, options as MonochromeOptions);
       if (origWidth && origHeight && (origWidth !== result.width || origHeight !== result.height)) {
-        const svgWithOrigViewBox = result.svg
-          .replace(`width="${result.width}" height="${result.height}"`, `width="${origWidth}" height="${origHeight}"`);
-        result = {
-          ...result,
-          width: origWidth,
-          height: origHeight,
-          svg: svgWithOrigViewBox
-        };
+        result = restoreTraceDimensions(result, origWidth, origHeight);
       }
     } else {
       result = traceColorFromImageData(imageData, options as ColorTracerOptions, origWidth, origHeight);

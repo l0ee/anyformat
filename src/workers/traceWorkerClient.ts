@@ -96,12 +96,27 @@ export class TraceWorkerClient {
   }
 
   private scheduleFallback(req: PendingTask): void {
-    setTimeout(async () => {
+    req.workerItem = null;
+    this.pendingRequests.set(req.id, req);
+    if (req.signal?.aborted) {
+      this.cleanupRequest(req);
+      req.reject(req.signal.reason || this.createAbortError());
+      return;
+    }
+    req.onCallerAbort = () => {
+      this.cleanupRequest(req);
+      req.reject(req.signal?.reason || this.createAbortError());
+    };
+    req.signal?.addEventListener('abort', req.onCallerAbort);
+    req.timer = setTimeout(async () => {
+      req.timer = null;
       try {
         const res = await req.fallback();
         req.resolve(res);
       } catch (err) {
         req.reject(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        this.cleanupRequest(req);
       }
     }, 0);
   }
@@ -159,19 +174,7 @@ export class TraceWorkerClient {
       }
     }
 
-    // If no workers remain in the pool, fall back queued work across ticks
-    if (this.workers.length === 0) {
-      while (this.pendingQueue.length > 0) {
-        const queuedId = this.pendingQueue.shift()!;
-        const queuedReq = this.pendingRequests.get(queuedId);
-        if (queuedReq) {
-          this.cleanupRequest(queuedReq);
-          this.scheduleFallback(queuedReq);
-        }
-      }
-    } else {
-      this.dispatchNext();
-    }
+    this.dispatchNext();
   }
 
   public handleWorkerMessageError(item: WorkerItem): void {
@@ -192,6 +195,17 @@ export class TraceWorkerClient {
 
   private dispatchNext(): void {
     if (this.pendingQueue.length === 0) return;
+
+    if (this.workers.length === 0) {
+      for (const id of this.pendingQueue.splice(0)) {
+        const req = this.pendingRequests.get(id);
+        if (req) {
+          this.cleanupRequest(req);
+          this.scheduleFallback(req);
+        }
+      }
+      return;
+    }
 
     const availableWorker = this.workers.find((w) => !w.busy);
     if (!availableWorker) return;
@@ -247,8 +261,10 @@ export class TraceWorkerClient {
 
       const url = URL.createObjectURL(file);
       const img = new Image();
+      let settled = false;
 
       const cleanup = () => {
+        settled = true;
         URL.revokeObjectURL(url);
         img.removeAttribute('src');
         img.src = '';
@@ -270,12 +286,15 @@ export class TraceWorkerClient {
 
       // Proactively check header dimensions to abort decoding early if an image exceeds safe memory bounds
       readImageHeaderDimensions(file).then((headerDims) => {
+        if (settled) return;
         if (!headerDims) return;
         if (headerDims.width > 16_384 || headerDims.height > 16_384 || headerDims.width * headerDims.height > 67_108_864) {
           cleanup();
           reject(new Error(`Image dimensions (${headerDims.width}x${headerDims.height}) exceed maximum allowable size (16,384px per edge / 64MP).`));
         }
-      }).catch(() => {});
+      }).catch(() => {}).finally(() => {
+        if (!settled) img.src = url;
+      });
 
       img.onload = () => {
         try {
@@ -299,6 +318,8 @@ export class TraceWorkerClient {
             }
           }
           const canvas = document.createElement('canvas');
+          width = Math.max(1, width);
+          height = Math.max(1, height);
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
@@ -322,13 +343,29 @@ export class TraceWorkerClient {
         reject(new Error('Failed to load image file for tracing.'));
       };
 
-      img.src = url;
     });
   }
 
   public async traceMonochrome(
     fileOrData: File | ImageData,
     options: MonochromeOptions = {},
+    signal?: AbortSignal
+  ): Promise<TraceResult> {
+    return this.trace(fileOrData, 'monochrome', options, signal);
+  }
+
+  public async traceColor(
+    fileOrData: File | ImageData,
+    options: ColorTracerOptions = {},
+    signal?: AbortSignal
+  ): Promise<TraceResult> {
+    return this.trace(fileOrData, 'color', options, signal);
+  }
+
+  private async trace(
+    fileOrData: File | ImageData,
+    type: TraceWorkerTask['type'],
+    options: MonochromeOptions | ColorTracerOptions,
     signal?: AbortSignal
   ): Promise<TraceResult> {
     if (signal?.aborted) {
@@ -368,16 +405,20 @@ export class TraceWorkerClient {
     }
 
     const fallback = async (): Promise<TraceResult> => {
-      const res = traceMonochromeFromImageData(imageData, options);
+      const res = type === 'monochrome'
+        ? traceMonochromeFromImageData(imageData, options as MonochromeOptions)
+        : await traceColorFromImageData(imageData, options as ColorTracerOptions);
       return restoreTraceDimensions(res, origWidth, origHeight);
     };
+
+    if (signal?.aborted) throw signal.reason || this.createAbortError();
 
     if (!this.isWorkerSupported || this.workers.length === 0) {
       return fallback();
     }
 
     return new Promise<TraceResult>((resolve, reject) => {
-      const id = `mono_${++this.requestCounter}_${Date.now()}`;
+      const id = `${type}_${++this.requestCounter}_${Date.now()}`;
       const clonedBytes = new Uint8ClampedArray(imageData.data);
       const clonedImageData =
         typeof ImageData !== 'undefined'
@@ -386,7 +427,7 @@ export class TraceWorkerClient {
 
       const task: TraceWorkerTask = {
         id,
-        type: 'monochrome',
+        type,
         imageData: clonedImageData,
         options,
         origWidth,
@@ -412,108 +453,6 @@ export class TraceWorkerClient {
             reject(signal.reason || this.createAbortError());
           } else if (pendingTask.workerItem) {
             // Task is actively running on a worker
-            const busyWorker = pendingTask.workerItem;
-            this.cleanupRequest(pendingTask);
-            this.replaceWorker(busyWorker);
-            reject(signal.reason || this.createAbortError());
-            this.dispatchNext();
-          }
-        };
-
-        pendingTask.onCallerAbort = onAbort;
-        signal.addEventListener('abort', onAbort);
-      }
-
-      this.pendingRequests.set(id, pendingTask);
-      this.pendingQueue.push(id);
-      this.dispatchNext();
-    });
-  }
-
-  public async traceColor(
-    fileOrData: File | ImageData,
-    options: ColorTracerOptions = {},
-    signal?: AbortSignal
-  ): Promise<TraceResult> {
-    if (signal?.aborted) {
-      throw signal.reason || this.createAbortError();
-    }
-
-    let imageData: ImageData;
-    let origWidth: number;
-    let origHeight: number;
-
-    if (fileOrData instanceof File) {
-      const decodeController = new AbortController();
-      this.decodingRequests.add(decodeController);
-
-      const onCallerAbort = () => {
-        decodeController.abort(signal?.reason || this.createAbortError());
-      };
-      if (signal) {
-        signal.addEventListener('abort', onCallerAbort);
-      }
-
-      try {
-        const decoded = await this.decodeFile(fileOrData, options.maxResolution, decodeController.signal);
-        imageData = decoded.imageData;
-        origWidth = decoded.origWidth;
-        origHeight = decoded.origHeight;
-      } finally {
-        if (signal) {
-          signal.removeEventListener('abort', onCallerAbort);
-        }
-        this.decodingRequests.delete(decodeController);
-      }
-    } else {
-      imageData = fileOrData;
-      origWidth = imageData.width;
-      origHeight = imageData.height;
-    }
-
-    const fallback = async (): Promise<TraceResult> => {
-      const res = await traceColorFromImageData(imageData, options);
-      return restoreTraceDimensions(res, origWidth, origHeight);
-    };
-
-    if (!this.isWorkerSupported || this.workers.length === 0) {
-      return fallback();
-    }
-
-    return new Promise<TraceResult>((resolve, reject) => {
-      const id = `color_${++this.requestCounter}_${Date.now()}`;
-      const clonedBytes = new Uint8ClampedArray(imageData.data);
-      const clonedImageData =
-        typeof ImageData !== 'undefined'
-          ? new ImageData(clonedBytes, imageData.width, imageData.height)
-          : ({ data: clonedBytes, width: imageData.width, height: imageData.height } as ImageData);
-
-      const task: TraceWorkerTask = {
-        id,
-        type: 'color',
-        imageData: clonedImageData,
-        options,
-        origWidth,
-        origHeight,
-      };
-
-      const pendingTask: PendingTask = {
-        id,
-        task,
-        resolve,
-        reject,
-        signal,
-        fallback,
-      };
-
-      if (signal) {
-        const onAbort = () => {
-          const queueIndex = this.pendingQueue.indexOf(id);
-          if (queueIndex !== -1) {
-            this.pendingQueue.splice(queueIndex, 1);
-            this.cleanupRequest(pendingTask);
-            reject(signal.reason || this.createAbortError());
-          } else if (pendingTask.workerItem) {
             const busyWorker = pendingTask.workerItem;
             this.cleanupRequest(pendingTask);
             this.replaceWorker(busyWorker);

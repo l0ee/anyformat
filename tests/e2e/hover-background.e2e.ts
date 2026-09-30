@@ -1,24 +1,21 @@
 import { expect, test } from '@playwright/test';
 
-test('renders hover background container without blocking main workflow elements', async ({ page }) => {
+test('layers ambient ribbons behind the readable hero and clickable converter controls', async ({ page }) => {
   await page.goto('/');
 
-  const hoverLayer = page.locator('.hover-glow-blob');
-  await expect(hoverLayer).toHaveCount(1);
-  await expect(hoverLayer).toHaveAttribute('aria-hidden', 'true');
-
-  const shellBackground = await page.locator('.app-shell').evaluate((element) =>
-    window.getComputedStyle(element).backgroundImage
-  );
-  expect(shellBackground).toContain('linear-gradient');
-
-  await page.mouse.move(100, 100);
-  await page.mouse.move(300, 300);
-
+  const background = page.locator('[data-animation="ambient-ribbons"]');
+  await expect(background).toHaveCount(1);
+  await expect(background).toHaveAttribute('aria-hidden', 'true');
+  await expect(background).toHaveCSS('pointer-events', 'none');
+  await expect(background).toBeVisible();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
   const heading = page.getByRole('heading', { level: 1 });
   await expect(heading).toBeVisible();
+  await expect(heading).toHaveCSS('color', 'rgb(28, 25, 23)');
+  const fileChooser = page.waitForEvent('filechooser');
+  await page.getByText('Browse image', { exact: true }).click();
+  await fileChooser;
 
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
-  await expect(page.locator('.hover-glow-blob')).toHaveCSS('display', 'none');
+  await page.getByRole('button', { name: 'Format Converter', exact: true }).click();
+  await expect(heading).toHaveText('Universal File Converter');
 });

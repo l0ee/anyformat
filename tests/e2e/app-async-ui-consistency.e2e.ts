@@ -134,11 +134,10 @@ test('an older timer does not dismiss a newer toast with the same message', asyn
   await page.clock.install();
   await page.goto('/');
   await page.getByRole('button', { name: 'Format Converter' }).click();
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'toast-target.svg',
-    mimeType: 'image/svg+xml',
-    buffer: validSvg,
-  });
+  await page.locator('input[type="file"]').setInputFiles([
+    { name: 'toast-target.svg', mimeType: 'image/svg+xml', buffer: validSvg },
+    { name: 'toast-target-2.svg', mimeType: 'image/svg+xml', buffer: validSvg },
+  ]);
 
   const targetSelect = page.getByLabel('Convert all to');
   const repeatedMessage = 'Set all target formats to .PNG';
@@ -173,12 +172,12 @@ test('retrying failed files leaves idle files queued', async ({ page }) => {
     buffer: validSvg,
   });
   await expect(page.getByText('Retry processes only failed files; 1 idle file remains queued.')).toBeVisible();
-  await expect(page.getByText('0 completed, 1 failed of 2')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Format conversion queue (2)' }).getByRole('status')).toContainText('1 ready · 0 processing · 0 completed · 1 failed');
 
-  const retryButton = page.getByRole('button', { name: 'Retry failed files' });
+  const retryButton = page.getByRole('button', { name: 'Retry failed conversions in the format conversion queue' });
   await retryButton.click();
   await expect(retryButton).toBeEnabled({ timeout: 60_000 });
-  await expect(page.getByText('0 completed, 1 failed of 2')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Format conversion queue (2)' }).getByRole('status')).toContainText('1 ready · 0 processing · 0 completed · 1 failed');
   await expect(page.getByRole('button', { name: 'Download idle.png' })).toHaveCount(0);
   await expect(page.getByRole('progressbar', { name: 'Converting idle.svg' })).toHaveCount(0);
 });

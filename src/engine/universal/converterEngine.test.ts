@@ -188,4 +188,18 @@ describe('converterEngine with PDF support', () => {
     const file = new File(['data'], 'test.png', { type: 'image/png' });
     await expect(convertUniversalFile(file, 'webp')).rejects.toThrow(/Browser returned image\/png instead of requested image\/webp/);
   });
+
+  it.each(['draw', 'encode'])('rejects a canvas %s exception instead of hanging', async (stage) => {
+    const fail = () => { throw new Error(`Canvas ${stage} failed`); };
+    vi.stubGlobal('document', {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => ({ drawImage: stage === 'draw' ? fail : vi.fn() }),
+        toBlob: fail,
+      }),
+    });
+    const file = new File(['data'], 'test.jpg', { type: 'image/jpeg' });
+    await expect(convertUniversalFile(file, 'png')).rejects.toThrow(`Canvas ${stage} failed`);
+  });
 });
