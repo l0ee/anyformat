@@ -91,6 +91,7 @@ export const App: React.FC = () => {
   // Universal File Converter state
   const [universalItems, setUniversalItems] = useState<UniversalTaskItem[]>([]);
   const [isUniversalProcessing, setIsUniversalProcessing] = useState<boolean>(false);
+  const [isUniversalStopping, setIsUniversalStopping] = useState(false);
 
   // Single file state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -135,6 +136,9 @@ export const App: React.FC = () => {
   // Batch mode state
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState<boolean>(false);
+  const [isBatchStopping, setIsBatchStopping] = useState(false);
+  const batchAbortControllerRef = useRef<AbortController | null>(null);
+  const universalAbortControllerRef = useRef<AbortController | null>(null);
   const isBatchProcessingRef = useRef(false);
   const isUniversalProcessingRef = useRef(false);
   const singleProcessIdRef = useRef(0);
@@ -169,6 +173,8 @@ export const App: React.FC = () => {
   useEffect(() => () => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     singleAbortControllerRef.current?.abort();
+    batchAbortControllerRef.current?.abort();
+    universalAbortControllerRef.current?.abort();
     if (originalUrlRef.current) URL.revokeObjectURL(originalUrlRef.current);
     batchItemsRef.current.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
     universalItemsRef.current.forEach((item) => {
@@ -394,10 +400,19 @@ export const App: React.FC = () => {
   };
 
   // Run Batch Processing
+  const stopBatchProcess = () => {
+    if (!batchAbortControllerRef.current) return;
+    setIsBatchStopping(true);
+    batchAbortControllerRef.current.abort();
+  };
+
   const startBatchProcess = async (targetIds?: string[] | unknown) => {
     if (isBatchProcessingRef.current) return;
     isBatchProcessingRef.current = true;
     setIsBatchProcessing(true);
+    setIsBatchStopping(false);
+    const controller = new AbortController();
+    batchAbortControllerRef.current = controller;
     const processedIds = new Set<string>();
     const ids = Array.isArray(targetIds) ? targetIds : undefined;
 
@@ -405,7 +420,7 @@ export const App: React.FC = () => {
     batchItemsRef.current.forEach((item) => finalStatuses.set(item.id, item.status));
 
     try {
-      while (true) {
+      while (!controller.signal.aborted) {
         const nextItem = batchItemsRef.current.find(
           (item) => item.status !== 'completed' && item.status !== 'processing' && !processedIds.has(item.id) && (ids ? ids.includes(item.id) : true)
         );
@@ -418,7 +433,7 @@ export const App: React.FC = () => {
         setBatchItems((current) => {
           const updated = current.map((item) =>
             item.id === currentId
-              ? { ...item, status: 'processing' as const, progress: 20, error: undefined }
+              ? { ...item, status: 'processing' as const, progress: 20, stage: 'Reading image…', error: undefined }
               : item
           );
           batchItemsRef.current = updated;
@@ -429,21 +444,24 @@ export const App: React.FC = () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         try {
+          controller.signal.throwIfAborted();
+          setBatchItems((current) => current.map((item) => item.id === currentId ? { ...item, stage: 'Tracing shapes…' } : item));
           let svgRes = '';
           let width = 0;
           let height = 0;
           if (tracingMode === 'monochrome') {
-            const res = await traceWorkerClient.traceMonochrome(currentFile, monoOpts);
+            const res = await traceWorkerClient.traceMonochrome(currentFile, monoOpts, controller.signal);
             svgRes = res.svg;
             width = res.width;
             height = res.height;
           } else {
-            const res = await traceWorkerClient.traceColor(currentFile, colorOpts);
+            const res = await traceWorkerClient.traceColor(currentFile, colorOpts, controller.signal);
             svgRes = res.svg;
             width = res.width;
             height = res.height;
           }
 
+          controller.signal.throwIfAborted();
           const optRes = optimizeSvg(svgRes, optOptsRef.current);
           finalStatuses.set(currentId, 'completed');
 
@@ -453,8 +471,10 @@ export const App: React.FC = () => {
                 ? {
                     ...item,
                     svgResult: optRes.svg,
+                    resultSize: new Blob([optRes.svg]).size,
                     status: 'completed' as const,
                     progress: 100,
+                    stage: undefined,
                     width,
                     height,
                   }
@@ -464,13 +484,22 @@ export const App: React.FC = () => {
             return updated;
           });
         } catch (err: unknown) {
+          if (controller.signal.aborted) {
+            finalStatuses.set(currentId, 'idle');
+            setBatchItems((current) => {
+              const updated = current.map((item) => item.id === currentId ? { ...item, status: 'idle' as const, progress: 0, stage: undefined, error: undefined } : item);
+              batchItemsRef.current = updated;
+              return updated;
+            });
+            break;
+          }
           const errMsg = err instanceof Error ? err.message : 'Tracing failed';
           finalStatuses.set(currentId, 'error');
 
           setBatchItems((current) => {
             const updated = current.map((item) =>
               item.id === currentId
-                ? { ...item, status: 'error' as const, error: errMsg }
+                ? { ...item, status: 'error' as const, stage: undefined, error: errMsg }
                 : item
             );
             batchItemsRef.current = updated;
@@ -481,6 +510,13 @@ export const App: React.FC = () => {
     } finally {
       isBatchProcessingRef.current = false;
       setIsBatchProcessing(false);
+      setIsBatchStopping(false);
+      batchAbortControllerRef.current = null;
+    }
+
+    if (controller.signal.aborted) {
+      showToast('Processing stopped. Completed files are kept; remaining files are ready to resume.', 'info');
+      return;
     }
 
     const failureCount = Array.from(finalStatuses.values()).filter((s) => s === 'error').length;
@@ -744,6 +780,9 @@ export const App: React.FC = () => {
     if (isUniversalProcessingRef.current && !isDirectRetry) return;
     isUniversalProcessingRef.current = true;
     setIsUniversalProcessing(true);
+    setIsUniversalStopping(false);
+    const controller = new AbortController();
+    universalAbortControllerRef.current = controller;
 
     const ids = Array.isArray(targetIds) ? targetIds : undefined;
 
@@ -751,7 +790,7 @@ export const App: React.FC = () => {
     let failedCount = 0;
 
     try {
-      while (true) {
+      while (!controller.signal.aborted) {
         let nextTask: UniversalTaskItem | null = null;
         for (const item of universalItemsRef.current) {
           const isTargeted = ids ? ids.includes(item.id) : true;
@@ -770,24 +809,33 @@ export const App: React.FC = () => {
 
         setUniversalItems((current) =>
           current.map((i) =>
-            i.id === currentId ? { ...i, status: 'processing', progress: 10 } : i
+            i.id === currentId ? { ...i, status: 'processing', progress: 10, stage: 'Reading file…', error: undefined } : i
           )
         );
 
         await new Promise((resolve) => setTimeout(resolve, 30));
 
         try {
+          controller.signal.throwIfAborted();
           const result = await convertUniversalFile(
             currentFile,
             currentTargetExt,
             (percent) => {
+              if (controller.signal.aborted) return;
               setUniversalItems((current) =>
                 current.map((i) => (i.id === currentId ? { ...i, progress: percent } : i))
               );
             },
-            { pageNumber: currentPageNumber }
+            {
+              pageNumber: currentPageNumber,
+              signal: controller.signal,
+              onStage: (stage) => {
+                if (!controller.signal.aborted) setUniversalItems((current) => current.map((item) => item.id === currentId ? { ...item, stage } : item));
+              },
+            }
           );
 
+          controller.signal.throwIfAborted();
           const resultUrl = URL.createObjectURL(result.blob);
           setUniversalItems((current) =>
             current.map((i) =>
@@ -796,8 +844,9 @@ export const App: React.FC = () => {
                     ...i,
                     status: 'completed',
                     progress: 100,
-                     resultBlob: result.blob,
-                     resultFilename: result.filename,
+                    stage: undefined,
+                    resultBlob: result.blob,
+                    resultFilename: result.filename,
                     resultUrl,
                     resultSize: result.blob.size,
                   }
@@ -807,11 +856,19 @@ export const App: React.FC = () => {
 
           processedCount++;
         } catch (err: unknown) {
+          if (controller.signal.aborted) {
+            setUniversalItems((current) => {
+              const updated = current.map((item) => item.id === currentId ? { ...item, status: 'idle' as const, progress: 0, stage: undefined, error: undefined } : item);
+              universalItemsRef.current = updated;
+              return updated;
+            });
+            break;
+          }
           failedCount++;
           const errorMsg = err instanceof Error ? err.message : 'Conversion failed';
           setUniversalItems((current) =>
             current.map((i) =>
-              i.id === currentId ? { ...i, status: 'error', error: errorMsg } : i
+              i.id === currentId ? { ...i, status: 'error', stage: undefined, error: errorMsg } : i
             )
           );
         }
@@ -819,6 +876,13 @@ export const App: React.FC = () => {
     } finally {
       isUniversalProcessingRef.current = false;
       setIsUniversalProcessing(false);
+      setIsUniversalStopping(false);
+      universalAbortControllerRef.current = null;
+    }
+
+    if (controller.signal.aborted) {
+      showToast('Processing stopped. Completed files are kept; remaining files are ready to resume.', 'info');
+      return;
     }
 
     if (failedCount > 0) {
@@ -840,6 +904,20 @@ export const App: React.FC = () => {
       downloadBlob(item.resultBlob, filename);
       showToast(`Downloaded ${filename}`, 'success');
     }
+  };
+
+  const stopUniversalConversion = () => {
+    if (!universalAbortControllerRef.current) return;
+    setIsUniversalStopping(true);
+    universalAbortControllerRef.current.abort();
+  };
+
+  const downloadBatchItem = (id: string) => {
+    const item = batchItemsRef.current.find((entry) => entry.id === id);
+    if (!item?.svgResult) return;
+    const filename = `${item.name.replace(/\.[^/.]+$/, '')}.svg`;
+    downloadBlob(new Blob([item.svgResult], { type: 'image/svg+xml' }), filename);
+    showToast(`Downloaded ${filename}`, 'success');
   };
 
   const exportBatchZipFiles = async () => {
@@ -1083,6 +1161,7 @@ export const App: React.FC = () => {
                     )}
 
                     <CodeInspector
+                      sourceSize={selectedFile.size}
                       svgContent={optimizedSvg || rawSvg}
                       optOptions={optOpts}
                       setOptOptions={setOptOpts}
@@ -1130,6 +1209,9 @@ export const App: React.FC = () => {
                   onStartBatch={startBatchProcess}
                   onExportZip={exportBatchZipFiles}
                   isProcessing={isBatchProcessing}
+                  isStopping={isBatchStopping}
+                  onStop={stopBatchProcess}
+                  onDownloadItem={downloadBatchItem}
                 />
               </>
             )}
@@ -1156,6 +1238,8 @@ export const App: React.FC = () => {
                 onClearCompleted={handleClearCompletedUniversal}
                 onRetryFailed={handleRetryFailedUniversal}
                 isProcessing={isUniversalProcessing}
+                isStopping={isUniversalStopping}
+                onStop={stopUniversalConversion}
               />
             )}
 

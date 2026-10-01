@@ -1,5 +1,6 @@
 import React, { useId, useState } from 'react';
 import { OptimizeOptions } from '../engine/types';
+import { ResultSizeSummary } from './ResultSizeSummary';
 
 interface CodeInspectorProps {
   svgContent: string;
@@ -10,6 +11,7 @@ interface CodeInspectorProps {
   onDownloadWebp: (scale: number) => void;
   isExporting?: boolean;
   isProcessing?: boolean;
+  sourceSize?: number;
 }
 
 export const CodeInspector: React.FC<CodeInspectorProps> = ({
@@ -21,6 +23,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
   onDownloadWebp,
   isExporting = false,
   isProcessing = false,
+  sourceSize,
 }) => {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [exportFormat, setExportFormat] = useState<'svg' | 'png' | 'webp'>('svg');
@@ -38,7 +41,8 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
     setTimeout(() => setCopyStatus('idle'), 2000);
   };
 
-  const formattedSize = (new Blob([svgContent]).size / 1024).toFixed(2);
+  const resultBytes = new Blob([svgContent]).size;
+  const formattedSize = (resultBytes / 1024).toFixed(2);
 
   return (
     <section aria-labelledby={headingId} className="app-panel rounded-2xl text-stone-900 dark:text-white p-5 space-y-4 font-['Plus_Jakarta_Sans',sans-serif]">
@@ -47,6 +51,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
         <div>
           <h3 id={headingId} className="text-sm font-semibold text-stone-900 dark:text-slate-200">Download your result</h3>
           <p className="text-xs font-mono text-stone-500 dark:text-slate-400">File Size: {formattedSize} KB</p>
+          {sourceSize !== undefined && svgContent && !isProcessing && <ResultSizeSummary sourceBytes={sourceSize} resultBytes={resultBytes} />}
         </div>
 
         <div className="flex items-center space-x-2">
