@@ -112,6 +112,7 @@ The production build is written to `dist`. The included server runs at **http://
 | `npm run typecheck` | Check TypeScript types. |
 | `npm run lint` | Check code style and common mistakes. |
 | `npm test` | Run unit tests. |
+| `npm run test:stress` | Run optional synthetic 4K tracing checks. |
 | `npm run test:e2e` | Run browser tests in Chromium, Firefox, and WebKit. |
 | `npm run build` | Create the production site. |
 
@@ -124,6 +125,8 @@ npx playwright install chromium firefox webkit
 On Debian or Ubuntu, add `--with-deps` if browser system libraries are missing. To run only Chromium, use `npx playwright test --project=chromium`.
 
 Tests cover conversion paths, tracing, file limits, previews, queue behavior, accessibility, and the production server. New formats should have verified conversion paths before they are advertised.
+
+The 4K stress checks are opt-in and use larger image buffers. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the audit summary](docs/audit-summary.md) for test scope and publication boundaries.
 
 ## Built with
 
