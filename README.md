@@ -1,4 +1,4 @@
-# AnyFormat 2
+# AnyFormat 2.1
 
 **Image and PDF conversion. SVG tools. All in your browser.**
 
@@ -7,6 +7,16 @@
 AnyFormat helps you change image formats, turn pictures into SVG graphics, and export individual PDF pages. Preview your results, adjust the settings, and download one file or a batch. Your files are processed on your device and are never uploaded to a conversion server.
 
 [Open AnyFormat](https://l0ee.github.io/anyformat/) · [Report a problem](https://github.com/l0ee/anyformat/issues) · [Contribute](CONTRIBUTING.md)
+
+## What's new in 2.1
+
+- **Know what's happening:** conversion stages such as Reading image, Rendering PDF page, and Tracing shapes, plus a count of finished files.
+- **Stop and resume:** stop either queue without losing completed results, then resume the files still marked Ready. Some canvas/PDF operations finish their current browser step before stopping safely.
+- **Download as files finish:** save an individual SVG from a batch or export completed results as a ZIP without waiting for every file.
+- **Compare your result:** original and output sizes show whether the SVG is smaller or larger. A size change does not guarantee equivalent image quality.
+- **More responsive interactions:** the upload area acknowledges dragged files, the comparison handle explains how to use it, and selected styles provide subtle feedback.
+
+The creator link beside the logo opens [the AnyFormat repository](https://github.com/l0ee/anyformat). All motion still respects reduced-motion preferences.
 
 ## What's new in Version 2
 
@@ -30,7 +40,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history. No installation or acc
 
 1. **Add your files.** Choose files, drag them into the upload area, or paste a supported image from your clipboard.
 2. **Choose your output.** Pick a format in Convert files, or choose a style in Create SVG. For PDFs, choose the page you want to convert. Advanced SVG settings and source code are available in expandable sections.
-3. **Preview and download.** Check the result, download a file, or export completed batch results as a ZIP.
+3. **Preview and download.** Check the result, download a file, or export completed batch results as a ZIP. Use Stop processing if you need to pause the queue; completed results stay available.
 
 ## Features
 
@@ -133,7 +143,7 @@ Website assets belong in `public`. Keep unused source artwork in the ignored `de
 
 ### Versioned releases
 
-The website updates when a validated change is merged into `main` and GitHub Pages deployment succeeds. A GitHub release records the source version separately: `v2.0.0` identifies Version 2. Creating a release alone does not deploy the website. The version displayed in the footer comes from `package.json`.
+The website updates when a validated change is merged into `main` and GitHub Pages deployment succeeds. GitHub releases record source versions separately, such as `v2.0.0` and `v2.1.0`. Creating a release alone does not deploy the website. The version displayed in the footer comes from `package.json`.
 
 ## Contributing and support
 

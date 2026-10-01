@@ -5,6 +5,7 @@ import { calculateUniversalBatchMetrics, copyResultToClipboard } from '../../uti
 import { convertPdfToImage } from '../../engine/pdfConverter';
 import { Download, ArrowRight, RefreshCw, Trash2, Layers, ShieldCheck, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { QueueFilters } from './QueueFilters';
+import { WorkflowProgress } from '../WorkflowProgress';
 
 const PdfSourcePagePreview: React.FC<{
   file: File;
@@ -105,6 +106,8 @@ interface UniversalQueueProps {
   onClearCompleted?: () => void;
   onRetryFailed?: () => void;
   isProcessing: boolean;
+  isStopping?: boolean;
+  onStop?: () => void;
 }
 
 export const UniversalQueue: React.FC<UniversalQueueProps> = ({
@@ -121,6 +124,8 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
   onClearCompleted,
   onRetryFailed,
   isProcessing,
+  isStopping,
+  onStop,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
@@ -269,6 +274,8 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
         </div>
       </div>
 
+      {isProcessing && <WorkflowProgress finished={completedCount + errorCount} completed={completedCount} total={items.length} stage={items.find((item) => item.status === 'processing')?.stage} stopping={isStopping} onStop={onStop} />}
+
       {(items.length > 2 || hasQueueFilters(filterOpts)) && (
         <QueueFilters value={filterOpts} onChange={setFilterOpts} visibleCount={filteredItems.length} totalCount={items.length} />
       )}
@@ -411,15 +418,17 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                     )}
 
                     {item.status === 'processing' && (
+                      <div className="processing-stage">
                       <progress
                         aria-label={`Converting ${item.name}`}
-                        aria-valuetext={`${item.progress}% complete`}
+                        aria-valuetext={item.stage || 'Processing…'}
                         max={100}
-                        value={item.progress}
                         className="h-2 w-24 accent-rose-600"
                       >
-                        {item.progress}%
+                        {item.stage || 'Processing…'}
                       </progress>
+                      <span>{item.stage || 'Processing…'}</span>
+                      </div>
                     )}
 
                     {!isSingle && item.status === 'completed' && (
@@ -601,7 +610,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                 {isProcessing ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    Converting ({items[0].progress}%)…
+                    Converting…
                   </>
                 ) : (
                   <>

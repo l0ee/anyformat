@@ -1,5 +1,14 @@
 export type FileCategory = 'image' | 'document' | 'vector';
 
+export type ConversionStage =
+  | 'Reading file…'
+  | 'Reading image…'
+  | 'Rendering PDF page…'
+  | 'Preparing PDF…'
+  | 'Rendering SVG…'
+  | 'Tracing shapes…'
+  | 'Preparing download…';
+
 /** Applies to every local file intake flow. */
 export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 export const MAX_FILE_SIZE_LABEL = '100 MB';
@@ -147,6 +156,7 @@ export interface UniversalTaskItem {
   targetExt: string;
   status: 'idle' | 'processing' | 'completed' | 'error';
   progress: number;
+  stage?: ConversionStage;
   previewUrl?: string;
   resultBlob?: Blob;
   resultFilename?: string;

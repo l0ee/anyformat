@@ -22,14 +22,14 @@ export function FileUploadSurface({ inputId, headingId, descriptionId, descripti
       <div className="file-upload-copy">
         {compact ? <span className="file-upload-icon" aria-hidden="true"><Plus size={20} /></span> : <ConversionMotionGraphic />}
         <div>
-          <h2 id={headingId}>{heading}</h2>
+          <h2 id={headingId}>{dragging && !disabled ? 'Drop to add files' : heading}</h2>
           <p id={descriptionId}>{description}</p>
         </div>
       </div>
       <label htmlFor={inputId} className={`file-upload-button ${disabled ? 'pointer-events-none' : ''}`}>
         {compact ? 'Add files' : 'Choose files'} <Plus size={16} aria-hidden="true" />
       </label>
-      {!compact && <p className="file-upload-paste">or drop files here · paste an image with Ctrl+V / ⌘V</p>}
+      {!compact && <p className="file-upload-paste">or drop files here · <span className="hidden sm:inline">paste an image with Ctrl+V / ⌘V</span><span className="sm:hidden">paste an image where supported</span></p>}
     </div>
   );
 }

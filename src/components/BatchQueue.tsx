@@ -1,6 +1,8 @@
 import React, { useId, useState } from 'react';
 import { Image } from 'lucide-react';
 import { BatchItem } from '../engine/types';
+import { WorkflowProgress } from './WorkflowProgress';
+import { ResultSizeSummary } from './ResultSizeSummary';
 
 interface BatchQueueProps {
   items: BatchItem[];
@@ -9,9 +11,12 @@ interface BatchQueueProps {
   onStartBatch: (targetIds?: string[]) => void;
   onExportZip: () => void;
   isProcessing: boolean;
+  isStopping?: boolean;
+  onStop?: () => void;
+  onDownloadItem?: (id: string) => void;
 }
 
-export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onClearQueue, onStartBatch, onExportZip, isProcessing }) => {
+export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onClearQueue, onStartBatch, onExportZip, isProcessing, isStopping, onStop, onDownloadItem }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const headingId = useId();
   const statusId = useId();
@@ -34,7 +39,7 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onClearQueue} disabled={isProcessing} className="min-h-11 rounded-xl border border-stone-300 bg-[#faf5ef] px-4 py-2 text-xs font-semibold uppercase text-stone-700 transition-colors motion-reduce:transition-none hover:bg-[#f3ebe1] disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Clear all</button>
-          {isFinished && completedCount > 0 && (
+          {completedCount > 0 && (
             <button type="button" onClick={onExportZip} aria-describedby={zipHelpId} className="min-h-11 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-colors motion-reduce:transition-none hover:from-rose-700 hover:to-pink-700">Export {completedCount} as ZIP</button>
           )}
           {(!isFinished || errorCount > 0) && (
@@ -58,6 +63,8 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
         </div>
       </div>
 
+      {isProcessing && <WorkflowProgress finished={completedCount + errorCount} completed={completedCount} total={items.length} stage={items.find((item) => item.status === 'processing')?.stage} stopping={isStopping} onStop={onStop} />}
+
       {completedCount > 0 && (
         <p id={zipHelpId} className="rounded-xl bg-stone-100/80 px-3 py-2 text-xs text-stone-700 dark:bg-slate-800/70 dark:text-slate-300">
           The ZIP contains the {completedCount} completed SVG file{completedCount === 1 ? '' : 's'} in this queue.
@@ -79,11 +86,13 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {item.status === 'processing' && <progress aria-label={`Processing ${item.name}`} aria-valuetext={`${item.progress}% complete`} max={100} value={item.progress} className="h-2 w-28 accent-pink-600">{item.progress}%</progress>}
+                  {item.status === 'processing' && <div className="processing-stage"><progress aria-label={`Processing ${item.name}`} aria-valuetext={item.stage || 'Tracing shapes…'} max={100} className="h-2 w-28 accent-pink-600" /><span>{item.stage || 'Tracing shapes…'}</span></div>}
+                  {item.status === 'completed' && item.svgResult && onDownloadItem && <button type="button" onClick={() => onDownloadItem(item.id)} aria-label={`Download ${item.name.replace(/\.[^/.]+$/, '')}.svg`} className="min-h-11 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-200">Download SVG</button>}
                   {(item.svgResult || item.previewUrl) && <button type="button" onClick={() => setExpandedId((value) => value === item.id ? null : item.id)} aria-expanded={expanded} aria-controls={previewId} className="min-h-11 rounded-lg px-3 py-2 text-xs font-semibold text-rose-700 transition-colors motion-reduce:transition-none hover:bg-rose-100/60 dark:text-sky-300 dark:hover:bg-slate-800">{expanded ? 'Hide preview' : 'Preview'}</button>}
                   <button type="button" onClick={() => onRemoveItem(item.id)} disabled={isProcessing} aria-label={`Remove ${item.name} from batch queue`} className="min-h-11 min-w-11 rounded-lg p-2 text-stone-500 transition-colors motion-reduce:transition-none hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"><svg className="mx-auto h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                 </div>
               </div>
+              {item.status === 'completed' && item.resultSize !== undefined && <ResultSizeSummary sourceBytes={item.file.size} resultBytes={item.resultSize} />}
               {expanded && <div id={previewId} className="mt-3 grid grid-cols-1 gap-3 rounded-lg border-t border-stone-200 bg-[#f4ece3] p-3 sm:grid-cols-2 dark:border-slate-800 dark:bg-slate-900">
                 <figure><figcaption className="mb-1 text-[10px] uppercase tracking-widest text-stone-600 dark:text-slate-400">Original image</figcaption><img src={item.previewUrl} alt={`Original ${item.name}`} className="max-h-36 rounded border border-stone-200 bg-[#faf5ef] object-contain dark:border-slate-700 dark:bg-slate-950" /></figure>
                 <figure><figcaption className="mb-1 text-[10px] uppercase tracking-widest text-stone-600 dark:text-slate-400">SVG result</figcaption>{item.svgResult ? <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(item.svgResult)}`} alt={`Converted SVG preview for ${item.name}`} className="max-h-36 rounded border border-stone-200 bg-[#faf5ef] object-contain dark:border-slate-700 dark:bg-slate-950" /> : <span className="text-xs italic text-stone-500">Not converted yet</span>}</figure>
