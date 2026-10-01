@@ -15,7 +15,7 @@ export function Header({ darkMode, setDarkMode, activeTab, setActiveTab, onOpenS
         <div className="workspace-brand">
           <img src={`${import.meta.env.BASE_URL}logo-vibrant.png`} alt="" width={30} height={30} />
           <span>AnyFormat</span>
-          <span className="workspace-brand-tag">Local file tools</span>
+          <a className="workspace-author" href="https://github.com/l0ee/anyformat" target="_blank" rel="noopener noreferrer">by l0ee</a>
         </div>
         <nav aria-label="Conversion modes" className="workspace-nav">
           <button type="button" aria-pressed={activeTab === 'universal'} onClick={() => setActiveTab('universal')}>

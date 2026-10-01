@@ -86,7 +86,7 @@ describe('converterEngine with PDF support', () => {
     const file = new File(['pdf_data'], 'doc.pdf', { type: 'application/pdf' });
     const result = await convertUniversalFile(file, 'svg');
 
-    expect(convertPdfToSvg).toHaveBeenCalledWith(file, 1);
+    expect(convertPdfToSvg).toHaveBeenCalledWith(file, 1, { signal: undefined, onStage: expect.any(Function) });
     expect(result.mimeType).toBe('image/svg+xml');
     expect(result.filename).toBe('doc.svg');
   });
@@ -201,5 +201,33 @@ describe('converterEngine with PDF support', () => {
     });
     const file = new File(['data'], 'test.jpg', { type: 'image/jpeg' });
     await expect(convertUniversalFile(file, 'png')).rejects.toThrow(`Canvas ${stage} failed`);
+  });
+
+  it('does not start conversion when its signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const onStage = vi.fn();
+    await expect(convertUniversalFile(new File(['data'], 'photo.png'), 'pdf', undefined, { signal: controller.signal, onStage })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(convertImageToPdf).not.toHaveBeenCalled();
+    expect(onStage).not.toHaveBeenCalled();
+  });
+
+  it('discards a PDF result that finishes after stopping', async () => {
+    const controller = new AbortController();
+    let finish!: (blob: Blob) => void;
+    vi.mocked(convertImageToPdf).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const stages: string[] = [];
+    const request = convertUniversalFile(new File(['data'], 'photo.png'), 'pdf', undefined, { signal: controller.signal, onStage: (stage) => stages.push(stage) });
+    controller.abort();
+    const rejection = expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    finish(new Blob(['late'], { type: 'application/pdf' }));
+    await rejection;
+    expect(stages).toEqual(['Reading file…', 'Preparing PDF…']);
+  });
+
+  it('reports raster stages without claiming measured time progress', async () => {
+    const stages: string[] = [];
+    await convertUniversalFile(new File(['data'], 'photo.jpg'), 'png', undefined, { onStage: (stage) => stages.push(stage) });
+    expect(stages).toEqual(['Reading file…', 'Reading image…', 'Preparing download…']);
   });
 });

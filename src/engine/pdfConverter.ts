@@ -1,6 +1,7 @@
 import { rasterizeSvgToBlob } from './svgRasterizer';
 import { traceWorkerClient } from '../workers/traceWorkerClient';
 import { optimizeSvg } from './svgOptimizer';
+import type { ConversionStage } from './universal/types';
 
 import {
   MAX_CANVAS_EDGE,
@@ -135,8 +136,15 @@ export async function convertPdfToImage(
  * Converts a PDF page to SVG.
  * First renders PDF page to image canvas, then uses tracer worker to convert to SVG.
  */
-export async function convertPdfToSvg(file: File, pageNumber: number = 1): Promise<Blob> {
+export async function convertPdfToSvg(
+  file: File,
+  pageNumber: number = 1,
+  options?: { signal?: AbortSignal; onStage?: (stage: ConversionStage) => void }
+): Promise<Blob> {
+  options?.signal?.throwIfAborted();
   const imageBlob = await convertPdfToImage(file, 'png', pageNumber);
+  options?.signal?.throwIfAborted();
+  options?.onStage?.('Tracing shapes…');
   const imageFile = new File([imageBlob], 'temp_pdf_page.png', { type: 'image/png' });
 
   const traceResult = await traceWorkerClient.traceColor(imageFile, {
@@ -146,7 +154,9 @@ export async function convertPdfToSvg(file: File, pageNumber: number = 1): Promi
     alphaMax: 1.0,
     blurRadius: 0,
     maxResolution: 1024,
-  });
+  }, options?.signal);
+  options?.signal?.throwIfAborted();
+  options?.onStage?.('Preparing download…');
 
   const optResult = optimizeSvg(traceResult.svg, {
     precision: 2,

@@ -87,7 +87,9 @@ export interface BatchItem {
   name: string;
   status: 'idle' | 'processing' | 'completed' | 'error';
   progress: number;
+  stage?: string;
   svgResult?: string;
+  resultSize?: number;
   previewUrl?: string;
   error?: string;
   width?: number;
