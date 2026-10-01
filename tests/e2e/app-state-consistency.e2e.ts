@@ -62,7 +62,7 @@ test('preserves PDF page metadata when its count resolves during conversion', as
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'sample.pdf',
     mimeType: 'application/pdf',

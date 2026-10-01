@@ -1,4 +1,4 @@
-# AnyFormat
+# AnyFormat 2
 
 **Image and PDF conversion. SVG tools. All in your browser.**
 
@@ -8,18 +8,28 @@ AnyFormat helps you change image formats, turn pictures into SVG graphics, and e
 
 [Open AnyFormat](https://l0ee.github.io/anyformat/) · [Report a problem](https://github.com/l0ee/anyformat/issues) · [Contribute](CONTRIBUTING.md)
 
+## What's new in Version 2
+
+Version 2 puts the file tools first: a cleaner layout, two main modes, and fewer settings to work through. The upload area includes a small pixel-to-vector motion graphic that you can pause. It also respects your device's reduced-motion setting.
+
+- **Convert files** for image formats and selected PDF pages.
+- **Create SVG** for a single image or a batch, with automatic batch routing when you add several images.
+- **Simpler settings:** start with a style and expand advanced controls when you need them.
+- **Mobile-friendly workflows:** the upload action is visible on the first screen, previews appear before settings, and downloads remain easy to find.
+
+See [CHANGELOG.md](CHANGELOG.md) for the release history. No installation or account is required to use the website on a desktop or phone.
+
 ## Choose the right workspace
 
 | Workspace | What you can do |
 | --- | --- |
-| **Format Converter** | Convert supported images, SVG files, and PDF pages. Choose an output for each file, preview results, and download completed files. |
-| **Vector Studio** | Turn a picture into an SVG: a graphic made from shapes and curves that can scale without losing sharpness. Adjust colors and detail, then compare the result with the original. |
-| **Vector Batch** | Turn several pictures into SVG files using the same settings, then download the results together in a ZIP file. |
+| **Convert files** | Convert supported images, SVG files, and PDF pages. Choose an output for each file, preview results, and download completed files. |
+| **Create SVG** | Turn a picture into an SVG: a graphic made from shapes and curves that can scale without losing sharpness. Adjust colors and detail, then compare the result with the original. Add several images to use shared batch settings and export a ZIP. |
 
 ## How to use it
 
 1. **Add your files.** Choose files, drag them into the upload area, or paste a supported image from your clipboard.
-2. **Choose your output.** Pick a format in Format Converter, or adjust the tracing settings in Vector Studio. For PDFs, choose the page you want to convert.
+2. **Choose your output.** Pick a format in Convert files, or choose a style in Create SVG. For PDFs, choose the page you want to convert. Advanced SVG settings and source code are available in expandable sections.
 3. **Preview and download.** Check the result, download a file, or export completed batch results as a ZIP.
 
 ## Features
@@ -34,7 +44,7 @@ AnyFormat helps you change image formats, turn pictures into SVG graphics, and e
 
 ## Supported formats
 
-### Format Converter
+### Convert files
 
 | Input | Available outputs |
 | --- | --- |
@@ -45,9 +55,9 @@ AnyFormat helps you change image formats, turn pictures into SVG graphics, and e
 | SVG | PNG, JPEG, WebP, PDF |
 | PDF | PNG, JPEG, WebP, SVG |
 
-### Vector Studio and Vector Batch
+### Create SVG: single-image and batch workflows
 
-These workspaces accept **PNG, JPEG, WebP, BMP, and GIF** images for SVG tracing. GIF is not offered in Format Converter.
+Create SVG accepts **PNG, JPEG, WebP, BMP, and GIF** images for tracing. GIF is not offered in Convert files.
 
 ### What to expect
 
@@ -120,6 +130,10 @@ The public site is hosted on [GitHub Pages](https://l0ee.github.io/anyformat/). 
 For another host, serve the generated `dist` folder and set `VITE_SITE_URL` to your public site address when building. Set `VITE_BASE_PATH` if the app will live under a subdirectory. The included Node server also supports self-hosting, with compression, caching, range requests, and security headers.
 
 Website assets belong in `public`. Keep unused source artwork in the ignored `design-assets` directory.
+
+### Versioned releases
+
+The website updates when a validated change is merged into `main` and GitHub Pages deployment succeeds. A GitHub release records the source version separately: `v2.0.0` identifies Version 2. Creating a release alone does not deploy the website. The version displayed in the footer comes from `package.json`.
 
 ## Contributing and support
 

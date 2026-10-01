@@ -58,7 +58,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       <div className="text-xs font-semibold uppercase tracking-widest text-stone-500 dark:text-slate-400 pt-1">
-        VECTOR PARAMETERS
+        Adjust your result
       </div>
 
       {/* Mode Specific Controls */}
@@ -98,7 +98,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           </div>
 
-          <div>
+          <details className="workspace-advanced">
+            <summary>Advanced settings</summary>
+          <div className="mt-4">
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
               <label htmlFor={controlId('mono-alpha')}>Corner smoothing</label>
               <output id={controlId('mono-alpha-value')} htmlFor={controlId('mono-alpha')} className="font-mono text-pink-600 dark:text-pink-400">{monoOpts.alphaMax ?? 1.0}</output>
@@ -174,6 +176,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </label>
             </div>
           </div>
+          </details>
         </div>
       ) : (
         <div className="space-y-4">
@@ -211,7 +214,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           </div>
 
-          <div>
+          <details className="workspace-advanced">
+            <summary>Advanced settings</summary>
+          <div className="mt-4">
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
               <label htmlFor={controlId('color-alpha')}>Corner smoothing</label>
               <output id={controlId('color-alpha-value')} htmlFor={controlId('color-alpha')} className="font-mono text-pink-600 dark:text-pink-400">{colorOpts.alphaMax ?? 1.0}</output>
@@ -265,6 +270,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           </div>
 
+          </details>
         </div>
       )}
     </fieldset>
