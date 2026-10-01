@@ -8,6 +8,18 @@ AnyFormat helps you change image formats, turn pictures into SVG graphics, and e
 
 [Open AnyFormat](https://l0ee.github.io/anyformat/) · [Report a problem](https://github.com/l0ee/anyformat/issues) · [Contribute](CONTRIBUTING.md)
 
+## At a glance
+
+| Area | Approach |
+| --- | --- |
+| Interface | React and TypeScript, with responsive layouts and preview-driven workflows |
+| Processing | Browser Canvas for raster operations and Web Workers for background tracing |
+| PDFs and exports | PDF.js, pdf-lib, and ZIP downloads for completed batches |
+| Data handling | Local file processing without a file-upload backend |
+| Development | Documented type checks, linting, unit tests, and Playwright browser tests |
+
+Start with the [live application](https://l0ee.github.io/anyformat/), or jump to [local setup](#run-locally) to explore the code.
+
 ## What's new in 2.1
 
 - **Know what's happening:** conversion stages such as Reading image, Rendering PDF page, and Tracing shapes, plus a count of finished files.
