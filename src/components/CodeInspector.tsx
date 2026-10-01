@@ -45,7 +45,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
       {/* Header Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200/80 dark:border-slate-800 pb-4">
         <div>
-          <h3 id={headingId} className="text-sm font-serif uppercase tracking-wider text-stone-900 dark:text-slate-200">SVG OUTPUT &amp; OPTIMIZATION</h3>
+          <h3 id={headingId} className="text-sm font-semibold text-stone-900 dark:text-slate-200">Download your result</h3>
           <p className="text-xs font-mono text-stone-500 dark:text-slate-400">File Size: {formattedSize} KB</p>
         </div>
 
@@ -151,6 +151,8 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
       </div>
 
       {/* SVG cleanup toggles */}
+      <details className="workspace-advanced">
+      <summary>SVG code and cleanup settings</summary>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#faf5ef] dark:bg-slate-950 p-3 rounded-xl border border-stone-200/90 dark:border-slate-800">
         <label className="flex min-h-10 items-center text-xs text-stone-700 dark:text-slate-300 cursor-pointer">
           <input
@@ -200,6 +202,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
           {svgContent}
         </pre>
       </div>
+      </details>
     </section>
   );
 };

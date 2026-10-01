@@ -29,7 +29,7 @@ test('clears completed conversions, preserves other work, and releases completed
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
 
   const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles([

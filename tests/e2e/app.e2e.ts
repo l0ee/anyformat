@@ -57,7 +57,7 @@ test('renders the primary workflows without horizontal overflow', async ({ page 
 
   await expect(page).toHaveTitle('AnyFormat — Image & PDF Converter with SVG Tools');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /http:\/\/(127\.0\.0\.1:4174|localhost:5173)\//);
-  await expect(page.getByText('by l0ee')).toHaveCount(1);
+  await expect(page.getByText('AnyFormat', { exact: true })).toBeVisible();
   await expect(page.getByText(/© \d{4} l0ee\./)).toBeVisible();
   await expect(page.getByRole('link', { name: /View AnyFormat on GitHub/ })).toHaveAttribute('href', 'https://github.com/l0ee/anyformat');
 
@@ -67,7 +67,8 @@ test('renders the primary workflows without horizontal overflow', async ({ page 
 
 test('shows batch settings only after files are selected and below the uploader', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Vector Batch' }).click();
+  await page.getByRole('button', { name: 'Create SVG', exact: true }).click();
+  await page.getByRole('button', { name: 'Work with multiple images' }).click();
   await expect(page.getByRole('heading', { name: 'Batch settings' })).toHaveCount(0);
 
   const files = await canvasFiles(page);
@@ -75,7 +76,7 @@ test('shows batch settings only after files are selected and below the uploader'
 
   const settings = page.getByRole('heading', { name: 'Batch settings' });
   await expect(settings).toBeVisible();
-  const uploaderBox = await page.getByRole('group', { name: 'Drag images here or browse' }).boundingBox();
+  const uploaderBox = await page.getByRole('group', { name: 'Add images to create SVG' }).boundingBox();
   const settingsBox = await settings.boundingBox();
   expect(uploaderBox).not.toBeNull();
   expect(settingsBox).not.toBeNull();
@@ -84,7 +85,7 @@ test('shows batch settings only after files are selected and below the uploader'
 
 test('rejects unsupported universal uploads accessibly', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'private.txt',
     mimeType: 'text/plain',
@@ -96,7 +97,7 @@ test('rejects unsupported universal uploads accessibly', async ({ page }) => {
 test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   const fixtures = await canvasFiles(page);
   const fixtureByExtension = Object.fromEntries(
     fixtures.map((fixture) => [fixture.name.split('.').pop()!, fixture])
@@ -130,13 +131,13 @@ test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async 
 
 test('triggers conversion with Ctrl+Enter and renders Copy SVG button with size reduction badge', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
 
   const fixtures = await canvasFiles(page);
   const pngFixture = fixtures.find((f) => f.name === 'sample.png')!;
 
   await page.locator('input[type="file"]').setInputFiles([pngFixture]);
-  await expect(page.getByRole('heading', { name: 'Convert file' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Convert file/, level: 2 })).toBeVisible();
 
   // Select SVG target format
   await page.getByLabel('Output for sample.png').selectOption('svg');

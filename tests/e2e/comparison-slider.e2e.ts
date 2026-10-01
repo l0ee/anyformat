@@ -42,7 +42,7 @@ test('keeps the comparison slider accessible and cleans up SVG preview URLs', as
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Vector Studio', exact: true }).click();
+  await page.getByRole('button', { name: 'Create SVG', exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'comparison.png',
     mimeType: 'image/png',

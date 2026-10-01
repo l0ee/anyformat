@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { HeroHeader } from './components/HeroHeader';
-import { AmbientRibbonBackground } from './components/AmbientRibbonBackground';
 import { Dropzone } from './components/Dropzone';
 import { PresetSelector } from './components/PresetSelector';
 import { ControlPanel } from './components/ControlPanel';
@@ -86,7 +85,7 @@ const setStoredTheme = (darkMode: boolean): void => {
 
 export const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState<boolean>(getStoredTheme);
-  const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'universal'>('single');
+  const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'universal'>('universal');
   const [toast, setToast] = useState<Toast | null>(null);
 
   // Universal File Converter state
@@ -950,7 +949,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-shell relative isolate min-h-screen overflow-x-clip text-stone-900 transition-colors dark:text-white">
-      <AmbientRibbonBackground />
       <a href="#main-content" className="skip-link">
         Skip to converter
       </a>
@@ -997,10 +995,24 @@ export const App: React.FC = () => {
       >
         <HeroHeader activeTab={activeTab} compact={activeTab === 'single' ? Boolean(selectedFile) : activeTab === 'batch' ? batchItems.length > 0 : universalItems.length > 0} />
 
+        {activeTab !== 'universal' && (
+          <div className="svg-workspace-options">
+            <span>{activeTab === 'batch' ? 'Batch workspace · shared settings for all images' : 'Single-image workspace · live preview'}</span>
+            <button type="button" onClick={() => setActiveTab(activeTab === 'batch' ? 'single' : 'batch')}>
+              {activeTab === 'batch' ? 'Work on one image' : 'Work with multiple images'}
+            </button>
+          </div>
+        )}
+
         {activeTab === 'single' ? (
           <div className="space-y-8">
             {!selectedFile ? (
-              <Dropzone onFileSelect={handleSingleFileSelect} />
+              <Dropzone multiple onFileSelect={(files) => {
+                if (files.length > 1) {
+                  handleBatchFileSelect(files);
+                  setActiveTab('batch');
+                } else handleSingleFileSelect(files);
+              }} />
             ) : (
               <div className="space-y-6">
                 <div className="app-panel flex flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
@@ -1033,7 +1045,7 @@ export const App: React.FC = () => {
                 />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-1">
+                  <div className="lg:col-span-1 order-2 lg:order-1">
                     <ControlPanel
                       mode={tracingMode}
                       setMode={setTracingMode}
@@ -1044,7 +1056,7 @@ export const App: React.FC = () => {
                     />
                   </div>
 
-                  <div className="lg:col-span-2 space-y-6">
+                  <div className="lg:col-span-2 space-y-6 order-1 lg:order-2">
                     {isProcessing ? (
                       <div
                         className="app-panel flex min-h-72 flex-col items-center justify-center rounded-2xl sm:min-h-[400px]"
@@ -1147,7 +1159,7 @@ export const App: React.FC = () => {
               />
             )}
 
-            {universalItems.length === 0 && <section aria-label="Converter Features" className="grid grid-cols-1 gap-5 pt-2 md:grid-cols-3">
+            {universalItems.length === 0 && <details className="workspace-about"><summary>What can I do with AnyFormat?</summary><section aria-label="Converter Features" className="grid grid-cols-1 gap-5 pt-2 md:grid-cols-3">
               <div className="app-panel rounded-2xl p-6 transition-all">
                 <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
                   <ShieldCheck className="h-6 w-6" />
@@ -1183,7 +1195,7 @@ export const App: React.FC = () => {
                   Open an image in Vector Studio to adjust colors and detail, compare it with the original, and inspect or copy the SVG code.
                 </p>
               </div>
-            </section>}
+            </section></details>}
           </div>
         )}
       </main>

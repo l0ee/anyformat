@@ -59,13 +59,14 @@ async function pasteText(page: Page): Promise<boolean> {
 
 test('pastes supported clipboard images into the active vectorizer, batch, and universal uploaders', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Or paste an image with Ctrl+V / ⌘V')).toBeVisible();
+  await page.getByRole('button', { name: 'Create SVG', exact: true }).click();
+  await expect(page.getByText(/paste an image with Ctrl\+V/)).toBeVisible();
 
   await expect.poll(() => pasteFiles(page, [{ name: '', mimeType: 'image/png' }])).toBe(true);
   await expect(page.getByRole('img', { name: 'Preview of pasted-image.png' })).toBeVisible();
 
-  await page.getByRole('button', { name: /Vector Batch|SVG Batch/i }).click();
-  await expect(page.getByText('Or paste an image with Ctrl+V / ⌘V')).toBeVisible();
+  await page.getByRole('button', { name: 'Work with multiple images' }).click();
+  await expect(page.getByText(/paste an image with Ctrl\+V/)).toBeVisible();
   await expect.poll(() => pasteFiles(page, [
     { name: '', mimeType: 'image/png' },
     { name: '', mimeType: 'image/png' },
@@ -74,8 +75,8 @@ test('pastes supported clipboard images into the active vectorizer, batch, and u
   await expect(page.getByRole('heading', { name: 'pasted-image.png' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'pasted-image-2.png' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Format Converter' }).click();
-  await expect(page.getByText('Or paste an image with Ctrl+V / ⌘V')).toBeVisible();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
+  await expect(page.getByText(/paste an image with Ctrl\+V/)).toBeVisible();
   await expect.poll(() => pasteFiles(page, [{ name: '', mimeType: 'image/png' }])).toBe(true);
   await expect(page.getByRole('heading', { name: 'Format conversion queue (1)' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'pasted-image.png' })).toBeVisible();

@@ -63,7 +63,8 @@ async function trackQueueSideEffects(page: Page) {
 test('caps repeated legacy batch additions at 100 and reports skipped files', async ({ page }) => {
   await trackQueueSideEffects(page);
   await page.goto('/');
-  await page.getByRole('button', { name: /Vector Batch|SVG Batch/i }).click();
+  await page.getByRole('button', { name: 'Create SVG', exact: true }).click();
+  await page.getByRole('button', { name: 'Work with multiple images' }).click();
 
   const png = await createPng(page);
   const fileInput = page.locator('input[type="file"]');
@@ -95,7 +96,7 @@ test('caps repeated legacy batch additions at 100 and reports skipped files', as
 test('caps repeated Universal additions and skips object URLs and PDF page counting at capacity', async ({ page }) => {
   await trackQueueSideEffects(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
 
   const png = await createPng(page);
   const pdf = await createPdf();

@@ -1,102 +1,16 @@
-import React from 'react';
+import { version } from '../../package.json';
 
-const logoImg = `${import.meta.env.BASE_URL}logo-vibrant.png`;
-
-export const Footer: React.FC = () => {
+export function Footer() {
   return (
-    <footer className="app-panel max-w-7xl mx-4 sm:mx-6 lg:mx-auto my-8 rounded-[2.5rem] text-stone-600 dark:text-slate-400 p-8 sm:p-12 shadow-xl transition-colors font-['Plus_Jakarta_Sans',sans-serif]">
-      <div className="max-w-7xl mx-auto px-2">
-        <div className="grid grid-cols-1 gap-8 mb-8 sm:grid-cols-2 lg:grid-cols-4">
-          <section aria-labelledby="footer-about" className="space-y-3">
-            <h2 id="footer-about" className="text-xs font-semibold uppercase tracking-wider text-stone-900 dark:text-slate-200">About us</h2>
-            <div className="flex items-center space-x-2 group">
-              <img
-                src={logoImg}
-                alt="AnyFormat"
-                className="h-8 w-auto object-contain transition-all duration-300 group-hover:scale-110 group-hover:-rotate-3 group-hover:drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]"
-                loading="lazy"
-                decoding="async"
-              />
-              <span className="text-sm font-bold text-stone-900 dark:text-slate-100">
-                AnyFormat
-              </span>
-            </div>
-            <p className="text-xs text-stone-600 dark:text-slate-400 leading-relaxed">
-              Convert images and PDF pages, or turn pictures into SVG graphics. Everything is processed in your browser, so your files stay on your device.
-            </p>
-            <a href="https://github.com/l0ee" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-xs font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">GitHub profile: @l0ee</a>
-          </section>
-
-          <section aria-labelledby="footer-vector-tools">
-            <h2 id="footer-vector-tools" className="text-xs font-semibold uppercase tracking-wider text-stone-900 dark:text-slate-200 mb-3">Vector tools</h2>
-            <ul className="space-y-2 text-xs">
-              <li>Black-and-white and color SVG graphics</li>
-              <li>Before-and-after comparison</li>
-              <li>Color editing and SVG code tools</li>
-              <li>Batch SVG downloads in a ZIP</li>
-            </ul>
-          </section>
-
-          <section aria-labelledby="footer-format-tools">
-            <h2 id="footer-format-tools" className="text-xs font-semibold uppercase tracking-wider text-stone-900 dark:text-slate-200 mb-3">Format tools</h2>
-            <ul className="space-y-2 text-xs">
-              <li>PNG, JPEG, and WebP image conversion</li>
-              <li>SVG-to-image and image-to-PDF exports</li>
-              <li>Selected PDF pages to images or SVG</li>
-              <li>PNG and WebP exports at different sizes</li>
-            </ul>
-          </section>
-
-          <section aria-labelledby="footer-repository">
-            <h2 id="footer-repository" className="text-xs font-semibold uppercase tracking-wider text-stone-900 dark:text-slate-200 mb-3">Git Repo</h2>
-            <p className="mb-3 text-xs leading-relaxed">View the source, report a problem, or contribute through GitHub.</p>
-            <ul className="space-y-2 text-xs">
-              <li><a href="https://github.com/l0ee/anyformat" target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">Source repository</a></li>
-              <li><a href="https://github.com/l0ee/anyformat/issues" target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200">Issues and requests</a></li>
-            </ul>
-          </section>
-        </div>
-
-        <div className="pt-6 border-t border-stone-200/80 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-stone-500 dark:text-slate-500">
-          <p>&copy; {new Date().getFullYear()} l0ee.</p>
-
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-300/80 bg-[#faf5ef]/90 px-3 py-1 text-xs font-semibold text-stone-800 shadow-xs backdrop-blur-md transition-all hover:border-stone-400 dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-200 dark:hover:border-slate-700">
-              <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <span>Zero Server Uploads</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-300/80 bg-[#faf5ef]/90 px-3 py-1 text-xs font-semibold text-stone-800 shadow-xs backdrop-blur-md transition-all hover:border-stone-400 dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-200 dark:hover:border-slate-700">
-              <svg className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span>100% In-Browser</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-stone-300/80 bg-[#faf5ef]/90 px-3 py-1 text-xs font-semibold text-stone-800 shadow-xs backdrop-blur-md transition-all hover:border-stone-400 dark:border-slate-800 dark:bg-slate-900/85 dark:text-slate-200 dark:hover:border-slate-700">
-              <svg className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              <span>Vector Studio Integrated</span>
-            </span>
-          </div>
-
-          <p>
-            MIT licensed.{' '}
-            <a
-              href="https://github.com/l0ee/anyformat"
-              target="_blank"
-              rel="noreferrer"
-              className="font-semibold text-pink-700 underline decoration-pink-400/60 underline-offset-4 hover:text-pink-800 dark:text-pink-300 dark:hover:text-pink-200"
-            >
-              View the source on GitHub
-            </a>
-            .
-          </p>
-        </div>
+    <footer className="workspace-footer">
+      <span>© {new Date().getFullYear()} l0ee. · AnyFormat v{version} · Files stay on your device.</span>
+      <div className="workspace-footer-links">
+        <a href="https://github.com/l0ee/anyformat" target="_blank" rel="noreferrer">Source on GitHub</a>
+        <a href="https://github.com/l0ee/anyformat/issues" target="_blank" rel="noreferrer">Feedback</a>
+        <span>MIT licensed</span>
       </div>
     </footer>
   );
-};
+}
 
 export default Footer;

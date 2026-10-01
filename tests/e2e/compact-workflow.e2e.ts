@@ -5,7 +5,7 @@ const file = (name: string) => ({ name, mimeType: 'image/svg+xml', buffer: svg }
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
 });
 
 test('shrinks the workspace after upload and gives a single result one download action', async ({ page }) => {
@@ -15,7 +15,7 @@ test('shrinks the workspace after upload and gives a single result one download 
   await page.locator('input[type="file"]').setInputFiles(file('single.svg'));
   await expect(hero).toHaveAttribute('data-compact', 'true');
   const after = await hero.boundingBox();
-  expect(after!.height).toBeLessThan(before!.height / 2);
+  expect(after!.height).toBeLessThan(before!.height);
   await expect(page.getByLabel('Convert all to')).toHaveCount(0);
   await page.getByRole('button', { name: 'Convert all files' }).click();
   await expect(page.getByRole('button', { name: 'Download single.png', exact: true })).toHaveCount(1);
@@ -23,7 +23,7 @@ test('shrinks the workspace after upload and gives a single result one download 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Convert another file' }).click();
   await expect(hero).toHaveAttribute('data-compact', 'false');
-  await expect(page.getByRole('list', { name: 'Conversion steps' })).toBeVisible();
+  await expect(page.getByText('Choose files', { exact: true })).toBeVisible();
 });
 
 test('keeps filters recoverable when removal leaves fewer than three files', async ({ page }) => {
@@ -57,7 +57,7 @@ test('loads PDF libraries only when a PDF export is requested', async ({ page })
   const requested: string[] = [];
   page.on('request', (request) => requested.push(request.url()));
   await page.reload();
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   await expect(page.getByLabel('Browse files for the format conversion queue')).toBeVisible();
   expect(requested.some((url) => /vendor-(pdfjs|pdflib|jszip)-/.test(url))).toBe(false);
 

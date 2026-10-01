@@ -85,6 +85,7 @@ test('does not publish an old trace released during the settings debounce window
   });
 
   await page.goto('/');
+  await page.getByRole('button', { name: 'Create SVG', exact: true }).click();
   const png = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 2;
@@ -133,7 +134,7 @@ test('does not publish an old trace released during the settings debounce window
 test('an older timer does not dismiss a newer toast with the same message', async ({ page }) => {
   await page.clock.install();
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles([
     { name: 'toast-target.svg', mimeType: 'image/svg+xml', buffer: validSvg },
     { name: 'toast-target-2.svg', mimeType: 'image/svg+xml', buffer: validSvg },
@@ -157,7 +158,7 @@ test('an older timer does not dismiss a newer toast with the same message', asyn
 
 test('retrying failed files leaves idle files queued', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles({
     name: 'failed.pdf',

@@ -8,7 +8,7 @@ test('preserves the selected PDF page filename in manual downloads and ZIP expor
   pdf.addPage([32, 32]);
   pdf.addPage([32, 32]);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter', exact: true }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()),
   });

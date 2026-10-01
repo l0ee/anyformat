@@ -11,9 +11,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   onClose,
 }) => {
   const shortcuts = [
-    { key: '1', description: 'Open Vector Studio' },
-    { key: '2', description: 'Open Vector Batch' },
-    { key: '3', description: 'Open Format Converter' },
+    { key: '1', description: 'Create SVG: one image' },
+    { key: '2', description: 'Create SVG: multiple images' },
+    { key: '3', description: 'Convert files' },
     { key: 'Cmd / Ctrl + Enter', description: 'Start conversion / vectorization' },
     { key: 'Cmd / Ctrl + K', description: 'Open Keyboard Shortcuts Helper' },
     { key: '?', description: 'Toggle Keyboard Shortcuts Modal' },

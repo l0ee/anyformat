@@ -25,7 +25,7 @@ test('previews PDF results accessibly with open and download fallbacks', async (
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'report.svg',
     mimeType: 'image/svg+xml',
