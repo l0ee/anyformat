@@ -87,7 +87,7 @@ test('lazily previews the selected PDF page and invalidates stale previews', asy
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   const fileInput = page.locator('input[type="file"]');
   const pdf = await createTwoPageColorPdf();
   await fileInput.setInputFiles({ name: 'race.pdf', mimeType: 'application/pdf', buffer: pdf });
