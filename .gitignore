@@ -27,14 +27,26 @@ dist/
 dist-ssr/
 *.local
 
+# Local environment configuration; commit only reviewed examples.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
 # Local source artwork (not copied into builds or committed)
 design-assets/
+local-experiments/
 
 # Test reports and temporary artifacts
 .vitest/
 coverage/
 playwright-report/
 test-results/
+blob-report/
+
+# Crash dumps and local archives
+core
+core.*
 
 # Editor directories and files
 .vscode/*
