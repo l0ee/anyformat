@@ -51,6 +51,8 @@ for (const workspace of ['converter', 'studio', 'batch'] as const) {
         return { width: element.naturalWidth, height: element.naturalHeight };
       })).toEqual({ width: 1, height: 1 });
     } else if (workspace === 'batch') {
+      // Reveal lazy rows before WebKit's click so their height cannot shift mouse-up.
+      await page.getByRole('region', { name: 'Batch queue (1 files)' }).scrollIntoViewIfNeeded();
       await page.getByRole('button', { name: 'Process batch', exact: true }).click();
       await expect(page.getByRole('button', { name: 'Download core.svg', exact: true })).toBeVisible();
     } else {
