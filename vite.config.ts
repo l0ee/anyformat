@@ -1,9 +1,12 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import { PRODUCTION_CSP } from './config/security-policy.js';
+import { pdfjsAssets } from './config/pdfjs-assets.js';
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const siteUrl = (env.VITE_SITE_URL || 'http://localhost:5173/').replace(/\/*$/, '/');
 
@@ -11,10 +14,21 @@ export default defineConfig(({ mode }) => {
     base: env.VITE_BASE_PATH || '/',
     plugins: [
       react(),
+      tailwindcss(),
+      pdfjsAssets(),
       {
         name: 'replace-site-metadata',
         transformIndexHtml(html: string) {
-          return html.replaceAll('%SITE_URL%', siteUrl);
+          return {
+            html: html.replaceAll('%SITE_URL%', siteUrl),
+            // Development needs React refresh and Vite's websocket. Generate
+            // the production policy rather than removing it with a regex.
+            tags: command === 'build' ? [{
+              tag: 'meta',
+              attrs: { 'http-equiv': 'Content-Security-Policy', content: PRODUCTION_CSP },
+              injectTo: 'head-prepend' as const,
+            }] : [],
+          };
         },
       },
     ],

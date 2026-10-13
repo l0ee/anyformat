@@ -76,7 +76,7 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
           const previewId = `batch-preview-${item.id}`;
           const expanded = expandedId === item.id;
           return (
-            <li key={item.id} className="rounded-xl border border-stone-200/90 bg-[#faf5ef] p-3 dark:border-slate-800 dark:bg-slate-950">
+            <li key={item.id} data-expanded={expanded} className="queue-row rounded-xl border border-stone-200/90 bg-[#faf5ef] p-3 dark:border-slate-800 dark:bg-slate-950">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   {item.previewUrl ? <img src={item.previewUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-stone-200 object-cover dark:border-slate-800" /> : <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-stone-200 text-stone-500 dark:border-slate-800"><Image className="h-5 w-5" aria-hidden="true" /></div>}

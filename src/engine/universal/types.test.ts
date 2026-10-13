@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getCommonExportTargets,
+  getDefaultExportTarget,
   getFileExtension,
   isSupportedConversion,
   isSupportedSourceExtension,
@@ -31,10 +32,10 @@ describe('universal format support', () => {
   });
 
   it('returns only targets supported by every queued source', () => {
-    expect(getCommonExportTargets(['png', 'svg'])).toEqual(['jpg', 'webp', 'pdf']);
-    expect(getCommonExportTargets(['png', 'webp'])).toEqual(['jpg', 'svg', 'pdf']);
+    expect(getCommonExportTargets(['png', 'svg'])).toEqual(['jpg', 'webp', 'pdf', 'png']);
+    expect(getCommonExportTargets(['png', 'webp'])).toEqual(['jpg', 'webp', 'svg', 'pdf', 'png']);
     expect(getCommonExportTargets(['bmp', 'svg'])).toEqual(['png', 'jpg', 'webp', 'pdf']);
-    expect(getCommonExportTargets(['pdf', 'png'])).toEqual(['jpg', 'webp', 'svg']);
+    expect(getCommonExportTargets(['pdf', 'png'])).toEqual(['png', 'jpg', 'webp', 'svg']);
     expect(getCommonExportTargets(['pdf', 'svg'])).toEqual(['png', 'jpg', 'webp']);
   });
 
@@ -69,5 +70,69 @@ describe('universal format support', () => {
     expect(isSupportedConversion('constructor', 'png')).toBe(false);
     expect(isSupportedConversion('png', 'constructor')).toBe(false);
     expect(getCommonExportTargets(['constructor'])).toEqual([]);
+  });
+});
+
+describe('universal default export targets', () => {
+  it.each([
+    ['png', 'jpg'],
+    ['jpg', 'png'],
+    ['jpeg', 'png'],
+    ['webp', 'png'],
+    ['bmp', 'png'],
+    ['svg', 'png'],
+    ['pdf', 'png'],
+    ['PNG', 'jpg'],
+    ['SVG', 'png'],
+    ['PDF', 'png'],
+  ])('chooses the declared default for %s', (sourceExt, expectedTarget) => {
+    expect(getDefaultExportTarget(sourceExt)).toBe(expectedTarget);
+  });
+
+  it.each(['', 'unknown', 'ico', 'constructor', 'toString', 'valueOf', '__proto__'])(
+    'returns no default for undeclared source %j',
+    (sourceExt) => {
+      expect(getDefaultExportTarget(sourceExt)).toBeUndefined();
+    },
+  );
+
+  it.each([
+    { targets: [] },
+    { targets: [''] },
+    { targets: ['ico', 'jpg'] },
+    { targets: ['constructor', 'jpg'] },
+    { targets: ['toString', 'jpg'] },
+    { targets: ['__proto__', 'jpg'] },
+  ])('rejects invalid first targets instead of inventing a fallback: $targets', ({ targets }) => {
+    const originalTargets = SUPPORTED_FORMATS.png.canExportTo;
+    try {
+      SUPPORTED_FORMATS.png.canExportTo = targets;
+      expect(getDefaultExportTarget('png')).toBeUndefined();
+    } finally {
+      SUPPORTED_FORMATS.png.canExportTo = originalTargets;
+    }
+  });
+
+  it('requires the chosen target to have its own registry entry', () => {
+    const originalPng = SUPPORTED_FORMATS.png;
+    try {
+      delete SUPPORTED_FORMATS.png;
+      expect(getDefaultExportTarget('svg')).toBeUndefined();
+    } finally {
+      SUPPORTED_FORMATS.png = originalPng;
+    }
+  });
+
+  it('gives every registered source a usable declared default and export matrix', () => {
+    for (const [sourceExt, spec] of Object.entries(SUPPORTED_FORMATS)) {
+      const defaultTarget = getDefaultExportTarget(sourceExt);
+      expect(spec.ext).toBe(sourceExt);
+      expect(defaultTarget).toBeDefined();
+      expect(spec.canExportTo).toContain(defaultTarget);
+      for (const targetExt of spec.canExportTo) {
+        expect(isSupportedSourceExtension(targetExt)).toBe(true);
+        expect(isSupportedConversion(sourceExt, targetExt)).toBe(true);
+      }
+    }
   });
 });

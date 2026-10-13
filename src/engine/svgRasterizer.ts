@@ -109,23 +109,17 @@ export async function rasterizeSvgToBlob(
     options.format === 'jpeg' ? 'image/jpeg' : options.format === 'webp' ? 'image/webp' : 'image/png';
   const quality = options.quality ?? 0.92;
 
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error('Canvas to Blob conversion failed.'));
-          return;
-        }
-        if (options.format && blob.type !== mimeType) {
-          reject(new Error(`Browser returned ${blob.type} instead of ${mimeType}.`));
-          return;
-        }
-        resolve(blob);
-      },
-      mimeType,
-      quality
-    );
-  });
+  try {
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, quality));
+    if (!blob) throw new Error('Canvas to Blob conversion failed.');
+    if (options.format && blob.type !== mimeType) {
+      throw new Error(`Browser returned ${blob.type} instead of ${mimeType}.`);
+    }
+    return blob;
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 export async function rasterizeSvgToDataUrl(
@@ -133,20 +127,25 @@ export async function rasterizeSvgToDataUrl(
   options: RasterizeOptions = {}
 ): Promise<string> {
   const canvas = await svgToCanvas(svgString, options);
-  const mimeType =
-    options.format === 'jpeg' ? 'image/jpeg' : options.format === 'webp' ? 'image/webp' : 'image/png';
-  const quality = options.quality ?? 0.92;
+  try {
+    const mimeType =
+      options.format === 'jpeg' ? 'image/jpeg' : options.format === 'webp' ? 'image/webp' : 'image/png';
+    const quality = options.quality ?? 0.92;
 
-  const dataUrl = canvas.toDataURL(mimeType, quality);
-  if (options.format) {
-    const match = dataUrl.match(/^data:([^;,]+)/);
-    const actualMime = match ? match[1] : '';
-    if (actualMime && actualMime !== mimeType) {
-      throw new Error(`Browser returned ${actualMime} instead of ${mimeType}.`);
+    const dataUrl = canvas.toDataURL(mimeType, quality);
+    if (options.format) {
+      const match = dataUrl.match(/^data:([^;,]+)/);
+      const actualMime = match ? match[1] : '';
+      if (actualMime && actualMime !== mimeType) {
+        throw new Error(`Browser returned ${actualMime} instead of ${mimeType}.`);
+      }
     }
-  }
 
-  return dataUrl;
+    return dataUrl;
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 export async function svgToCanvas(
@@ -210,34 +209,38 @@ export async function svgToCanvas(
   canvas.width = targetWidth;
   canvas.height = targetHeight;
 
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('Failed to get 2D context from canvas.');
+  let url: string | undefined;
+  let img: HTMLImageElement | undefined;
+  try {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Failed to get 2D context from canvas.');
+    if (options.backgroundColor || options.format === 'jpeg') {
+      ctx.fillStyle = options.backgroundColor || '#ffffff';
+      ctx.fillRect(0, 0, targetWidth, targetHeight);
+    }
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    url = URL.createObjectURL(svgBlob);
+    const image = new Image();
+    img = image;
+    image.crossOrigin = 'anonymous';
+    const imageUrl = url;
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = (err) => reject(new Error(`Failed to load SVG image into canvas: ${err}`));
+      image.src = imageUrl;
+    });
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    return canvas;
+  } catch (error) {
+    canvas.width = 0;
+    canvas.height = 0;
+    throw error;
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+    if (img) {
+      img.onload = null;
+      img.onerror = null;
+      img.removeAttribute?.('src');
+    }
   }
-
-  if (options.backgroundColor || options.format === 'jpeg') {
-    ctx.fillStyle = options.backgroundColor || '#ffffff';
-    ctx.fillRect(0, 0, targetWidth, targetHeight);
-  }
-
-  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
-
-  return new Promise<HTMLCanvasElement>((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-      URL.revokeObjectURL(url);
-      resolve(canvas);
-    };
-
-    img.onerror = (err) => {
-      URL.revokeObjectURL(url);
-      reject(new Error(`Failed to load SVG image into canvas: ${err}`));
-    };
-
-    img.src = url;
-  });
 }

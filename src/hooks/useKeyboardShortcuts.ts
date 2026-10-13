@@ -69,6 +69,9 @@ export const handleKeyboardShortcut = (
     return;
   }
 
+  // Leave navigation and single-key shortcuts to editable controls.
+  if (inInput) return;
+
   // Tab switching shortcuts: Alt+ArrowRight, Alt+ArrowLeft, Ctrl+PageDown, Ctrl+PageUp
   if (
     (event.altKey && event.key === 'ArrowRight') ||
@@ -91,9 +94,6 @@ export const handleKeyboardShortcut = (
     }
     return;
   }
-
-  // Short-circuit all remaining single key shortcuts if user is typing in input or contenteditable
-  if (inInput) return;
 
   // '?' key shortcut for help modal/overlay
   if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey) {

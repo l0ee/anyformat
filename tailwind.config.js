@@ -1,10 +1,7 @@
+import { legacyColors } from './config/tailwind-colors.js';
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'class',
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
   theme: {
     extend: {
       fontFamily: {
@@ -12,6 +9,7 @@ export default {
         sans: ['Plus Jakarta Sans', 'Outfit', 'Inter', 'sans-serif'],
       },
       colors: {
+        ...legacyColors,
         'luxury-black': '#121212',
         'luxury-card': '#1a1a1a',
         'luxury-border': '#2a2a2a',

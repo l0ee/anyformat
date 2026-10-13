@@ -36,6 +36,8 @@ test('stop preserves a completed conversion, discards a late result, and resumes
 
 test('SVG batch offers individual downloads and can stop a running trace', async ({ page }) => {
   await page.addInitScript(() => {
+    // Keep this sequential stop regression independent of decode completion order.
+    Object.defineProperty(navigator, 'hardwareConcurrency', { configurable: true, value: 2 });
     let requests = 0;
     class ControlledTraceWorker {
       onmessage: ((event: MessageEvent) => void) | null = null;

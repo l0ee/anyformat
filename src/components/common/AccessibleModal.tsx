@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -15,6 +15,7 @@ export const AccessibleModal: React.FC<ModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -60,11 +61,15 @@ export const AccessibleModal: React.FC<ModalProps> = ({
 
         const firstElement = focusables[0];
         const lastElement = focusables[focusables.length - 1];
+        const activeElement = document.activeElement;
 
-        if (e.shiftKey && document.activeElement === firstElement) {
+        if (activeElement === modalRef.current || !modalRef.current.contains(activeElement)) {
+          e.preventDefault();
+          (e.shiftKey ? lastElement : firstElement).focus();
+        } else if (e.shiftKey && activeElement === firstElement) {
           e.preventDefault();
           lastElement.focus();
-        } else if (!e.shiftKey && document.activeElement === lastElement) {
+        } else if (!e.shiftKey && activeElement === lastElement) {
           e.preventDefault();
           firstElement.focus();
         }
@@ -91,7 +96,7 @@ export const AccessibleModal: React.FC<ModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -100,16 +105,16 @@ export const AccessibleModal: React.FC<ModalProps> = ({
       <div
         ref={modalRef}
         tabIndex={-1}
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-[#faf6f0] dark:bg-slate-900 border border-stone-300/80 dark:border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 text-stone-900 dark:text-white animate-tooltip focus:outline-none"
+        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-[#faf6f0] dark:bg-slate-900 border border-stone-300/80 dark:border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 text-stone-900 dark:text-white animate-tooltip focus:outline-hidden"
       >
         <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-3">
-          <h2 id="modal-title" className="text-lg font-bold">
+          <h2 id={titleId} className="text-lg font-bold">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 dark:text-slate-400 dark:hover:text-white hover:bg-[#eee4d7]/80 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
+            className="min-h-11 min-w-11 flex items-center justify-center p-1.5 rounded-lg text-stone-500 hover:text-stone-900 dark:text-slate-400 dark:hover:text-white hover:bg-[#eee4d7]/80 dark:hover:bg-slate-800 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-500"
             aria-label="Close dialog"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

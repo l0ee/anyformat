@@ -38,7 +38,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({ colors, onColorCha
               />
               <span
                 aria-hidden="true"
-                className="block w-11 h-11 rounded-lg border border-stone-300 dark:border-slate-700 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950"
+                className="block w-11 h-11 rounded-lg border border-stone-300 dark:border-slate-700 peer-focus-visible:outline-hidden peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950"
                 style={{ backgroundColor: col.hex }}
               />
             </label>

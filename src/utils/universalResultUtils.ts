@@ -1,5 +1,21 @@
 import { UniversalTaskItem } from '../engine/universal/types';
 
+/** Clear all output state while retaining source previews and PDF metadata. */
+export function resetUniversalResult(item: UniversalTaskItem): UniversalTaskItem {
+  return {
+    ...item,
+    status: 'idle',
+    progress: 0,
+    stage: undefined,
+    resultBlob: undefined,
+    resultUrl: undefined,
+    resultFilename: undefined,
+    resultSize: undefined,
+    imageOutput: undefined,
+    error: undefined,
+  };
+}
+
 export interface UniversalBatchMetrics {
   totalSourceBytes: number;
   totalResultBytes: number;

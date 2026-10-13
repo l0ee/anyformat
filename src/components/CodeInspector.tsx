@@ -1,6 +1,7 @@
 import React, { useId, useState } from 'react';
 import { OptimizeOptions } from '../engine/types';
 import { ResultSizeSummary } from './ResultSizeSummary';
+import { PreparedRasterExport } from './PreparedRasterExport';
 
 interface CodeInspectorProps {
   svgContent: string;
@@ -12,6 +13,9 @@ interface CodeInspectorProps {
   isExporting?: boolean;
   isProcessing?: boolean;
   sourceSize?: number;
+  exportBaseName?: string;
+  exportWidth?: number;
+  exportHeight?: number;
 }
 
 export const CodeInspector: React.FC<CodeInspectorProps> = ({
@@ -24,6 +28,9 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
   isExporting = false,
   isProcessing = false,
   sourceSize,
+  exportBaseName = 'vector',
+  exportWidth = 0,
+  exportHeight = 0,
 }) => {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [exportFormat, setExportFormat] = useState<'svg' | 'png' | 'webp'>('svg');
@@ -54,12 +61,12 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
           {sourceSize !== undefined && svgContent && !isProcessing && <ResultSizeSummary sourceBytes={sourceSize} resultBytes={resultBytes} />}
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handleCopy}
             disabled={!svgContent || isProcessing}
-            className="min-h-11 px-4 py-1.5 text-xs font-serif uppercase tracking-wider rounded-full border border-stone-300 dark:border-slate-700 bg-[#faf5ef] dark:bg-slate-800 text-stone-700 dark:text-slate-200 hover:bg-[#f3ebe1] dark:hover:bg-slate-700 transition-colors motion-reduce:transition-none flex items-center space-x-1 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+            className="min-h-11 px-4 py-1.5 text-xs font-serif uppercase tracking-wider rounded-full border border-stone-300 dark:border-slate-700 bg-[#faf5ef] dark:bg-slate-800 text-stone-700 dark:text-slate-200 hover:bg-[#f3ebe1] dark:hover:bg-slate-700 transition-colors motion-reduce:transition-none flex items-center space-x-1 disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >
             {copyStatus === 'success' ? (
               <>
@@ -92,7 +99,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                 onDownloadSvg();
               }}
               disabled={isExporting || isProcessing || !svgContent}
-              className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                 exportFormat === 'svg'
                   ? 'bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/60 font-semibold'
                   : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
@@ -108,7 +115,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                 onDownloadPng(rasterScale);
               }}
               disabled={isExporting || isProcessing || !svgContent}
-              className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                 exportFormat === 'png'
                   ? 'bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/60 font-semibold'
                   : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
@@ -124,7 +131,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                 onDownloadWebp(rasterScale);
               }}
               disabled={isExporting || isProcessing || !svgContent}
-              className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`min-h-10 px-3 py-1 text-xs font-serif uppercase tracking-wider rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                 exportFormat === 'webp'
                   ? 'bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/60 font-semibold'
                   : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
@@ -142,7 +149,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
                     onClick={() => setRasterScale(s)}
                     disabled={isExporting || isProcessing}
                     aria-pressed={rasterScale === s}
-                    className={`min-w-10 min-h-10 px-2 py-0.5 text-[10px] font-mono rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    className={`min-w-10 min-h-10 px-2 py-0.5 text-[10px] font-mono rounded-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50 ${
                       rasterScale === s ? 'bg-sky-500 text-white font-bold' : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
                     }`}
                   >
@@ -154,6 +161,9 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
           </div>
         </div>
       </div>
+
+      {svgContent && <PreparedRasterExport svgContent={svgContent} baseName={exportBaseName}
+        width={exportWidth} height={exportHeight} disabled={isProcessing || isExporting} />}
 
       {/* SVG cleanup toggles */}
       <details className="workspace-advanced">
@@ -192,7 +202,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
             id={precisionId}
             value={optOptions.precision ?? 2}
             onChange={(e) => setOptOptions({ ...optOptions, precision: Number(e.target.value) })}
-            className="min-h-10 text-xs rounded border border-stone-300/80 dark:border-slate-800 bg-[#fdfaf6] dark:bg-slate-900 px-2 py-0.5 text-stone-800 dark:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="min-h-10 text-xs rounded border border-stone-300/80 dark:border-slate-800 bg-[#fdfaf6] dark:bg-slate-900 px-2 py-0.5 text-stone-800 dark:text-slate-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500"
           >
             <option value="1">1</option>
             <option value="2">2</option>
@@ -203,7 +213,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
 
       {/* Raw SVG Output Box */}
       <div className="relative rounded-xl overflow-hidden border border-stone-200/90 dark:border-slate-800 bg-[#faf5ef] dark:bg-slate-950 text-stone-800 dark:text-slate-300">
-        <pre tabIndex={0} aria-label="Optimized SVG source code" className="p-4 text-xs font-mono max-h-60 overflow-y-auto whitespace-pre-wrap break-all leading-relaxed scrollbar-thin scrollbar-thumb-stone-300 dark:scrollbar-thumb-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500">
+        <pre tabIndex={0} aria-label="Optimized SVG source code" className="p-4 text-xs font-mono max-h-60 overflow-y-auto whitespace-pre-wrap break-all leading-relaxed scrollbar-thin scrollbar-thumb-stone-300 dark:scrollbar-thumb-slate-800 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500">
           {svgContent}
         </pre>
       </div>

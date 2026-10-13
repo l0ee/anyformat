@@ -7,6 +7,8 @@ declare global {
     __revokedObjectUrls: string[];
     __racePreviewReadStarted?: boolean;
     __releaseRacePreviewRead?: () => void;
+    __heldPdfPreviewReads: Array<{ resolve: () => void; reject: () => void }>;
+    __createdSourcePreviewUrls: number;
   }
 }
 
@@ -165,4 +167,94 @@ test('lazily previews the selected PDF page and invalidates stale previews', asy
   await page.getByRole('button', { name: 'Clear all' }).click();
   await expect(page.getByRole('heading', { name: 'Format conversion queue (1)' })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.__revokedObjectUrls)).toContain(clearPreviewUrl);
+});
+
+test('announces a PDF source preview failure and retries successfully', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'recover-preview.pdf', mimeType: 'application/pdf', buffer: await createTwoPageColorPdf(),
+  });
+  await expect(page.getByLabel('PDF page for recover-preview.pdf')).toBeEnabled({ timeout: 60_000 });
+
+  await page.evaluate(() => {
+    const originalArrayBuffer = File.prototype.arrayBuffer;
+    let failNextPreview = true;
+    File.prototype.arrayBuffer = function () {
+      if (this.name === 'recover-preview.pdf' && failNextPreview) {
+        failNextPreview = false;
+        return Promise.reject(new Error('Simulated preview read failure'));
+      }
+      return originalArrayBuffer.call(this);
+    };
+  });
+
+  await page.getByRole('button', { name: 'Preview source page', exact: true }).click();
+  const error = page.getByRole('alert');
+  await expect(error).toContainText(/could not preview.*page 1/i);
+  await expect(error).toContainText(/try again/i);
+  await expect(page.getByRole('img', { name: /Source page preview/ })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Retry source preview', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Source page preview for recover-preview.pdf, page 1' })).toBeVisible({ timeout: 60_000 });
+  await expect(error).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Preview source page', exact: true })).toBeEnabled();
+});
+
+test('older PDF previews cannot replace a newer request after switching back to the same page', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'request-race.pdf', mimeType: 'application/pdf', buffer: await createTwoPageColorPdf(),
+  });
+  const pageInput = page.getByLabel('PDF page for request-race.pdf');
+  await expect(pageInput).toBeEnabled({ timeout: 60_000 });
+
+  await page.evaluate(() => {
+    window.__heldPdfPreviewReads = [];
+    window.__createdSourcePreviewUrls = 0;
+    const originalArrayBuffer = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = function () {
+      if (this.name !== 'request-race.pdf') return originalArrayBuffer.call(this);
+      return new Promise<ArrayBuffer>((resolve, reject) => {
+        window.__heldPdfPreviewReads.push({
+          resolve: () => { originalArrayBuffer.call(this).then(resolve, reject); },
+          reject: () => { reject(new Error('An older preview failed')); },
+        });
+      });
+    };
+    const createObjectURL = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (object) => {
+      if (object instanceof Blob && object.type === 'image/png') window.__createdSourcePreviewUrls++;
+      return createObjectURL(object);
+    };
+  });
+
+  const previewButton = page.getByRole('button', { name: 'Preview source page', exact: true });
+  await previewButton.click();
+  await page.waitForFunction(() => window.__heldPdfPreviewReads.length === 1);
+  await pageInput.fill('2');
+  await previewButton.click();
+  await page.waitForFunction(() => window.__heldPdfPreviewReads.length === 2);
+  await pageInput.fill('1');
+  await previewButton.click();
+  await page.waitForFunction(() => window.__heldPdfPreviewReads.length === 3);
+
+  await page.evaluate(() => window.__heldPdfPreviewReads[0].resolve());
+  await page.waitForFunction(() => window.__createdSourcePreviewUrls === 1);
+  await expect(page.getByRole('img', { name: /Source page preview/ })).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Rendering PDF page 1 preview…' })).toBeVisible();
+  await expect(previewButton).toBeDisabled();
+
+  await page.evaluate(() => window.__heldPdfPreviewReads[1].reject());
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Rendering PDF page 1 preview…' })).toBeVisible();
+  await expect(previewButton).toBeDisabled();
+
+  await page.evaluate(() => window.__heldPdfPreviewReads[2].resolve());
+  const preview = page.getByRole('img', { name: 'Source page preview for request-race.pdf, page 1' });
+  await expect(preview).toBeVisible({ timeout: 60_000 });
+  const pixel = await centerPixel(preview);
+  expect(pixel[0]).toBeGreaterThan(200);
+  expect(pixel[2]).toBeLessThan(50);
+  await expect(previewButton).toBeEnabled();
+  await expect(page.getByText('Rendering PDF page 1 preview…')).toHaveCount(0);
 });
