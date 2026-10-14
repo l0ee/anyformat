@@ -105,7 +105,7 @@ export const AccessibleModal: React.FC<ModalProps> = ({
       <div
         ref={modalRef}
         tabIndex={-1}
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-[#faf6f0] dark:bg-slate-900 border border-stone-300/80 dark:border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 text-stone-900 dark:text-white animate-tooltip focus:outline-hidden"
+        className="app-modal-panel w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl p-6 space-y-4 animate-tooltip focus:outline-hidden"
       >
         <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-3">
           <h2 id={titleId} className="text-lg font-bold">

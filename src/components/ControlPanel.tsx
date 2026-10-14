@@ -25,16 +25,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const focusClasses = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900';
 
   return (
-    <fieldset disabled={disabled} className={`app-panel text-stone-900 dark:text-white rounded-2xl p-6 space-y-5 font-['Plus_Jakarta_Sans',sans-serif] ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
+    <fieldset disabled={disabled} className={`app-panel studio-controls text-stone-900 dark:text-white rounded-2xl p-6 space-y-5 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Mode Switcher */}
-      <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-4">
-        <span className="text-sm font-semibold uppercase tracking-wider text-stone-700 dark:text-slate-300">TRACING MODE</span>
-        <div role="group" aria-label="Tracing mode" className="bg-[#eee4d7]/85 dark:bg-slate-950 p-1 rounded-lg flex space-x-1 border border-stone-300/70 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200/80 dark:border-slate-800 pb-4">
+        <span className="text-sm font-bold text-stone-700 dark:text-slate-300">Tracing mode</span>
+        <div role="group" aria-label="Tracing mode" className="studio-mode-options p-1 rounded-lg flex gap-1 border">
           <button
             type="button"
             onClick={() => setMode('monochrome')}
             aria-pressed={mode === 'monochrome'}
-            className={`min-h-10 px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-md transition-all motion-reduce:transition-none ${focusClasses} ${
+            className={`min-h-11 px-3 py-1 text-xs font-semibold rounded-md transition-colors motion-reduce:transition-none ${focusClasses} ${
               mode === 'monochrome'
                 ? 'bg-rose-500/20 border border-rose-500/60 text-rose-700 dark:text-pink-300 font-bold'
                 : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
@@ -46,7 +46,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             type="button"
             onClick={() => setMode('color')}
             aria-pressed={mode === 'color'}
-            className={`min-h-10 px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-md transition-all motion-reduce:transition-none ${focusClasses} ${
+            className={`min-h-11 px-3 py-1 text-xs font-semibold rounded-md transition-colors motion-reduce:transition-none ${focusClasses} ${
               mode === 'color'
                 ? 'bg-rose-500/20 border border-rose-500/60 text-rose-700 dark:text-pink-300 font-bold'
                 : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
