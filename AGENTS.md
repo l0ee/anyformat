@@ -7,7 +7,7 @@
 - **Production server build & start**: `npm run build && npm start`
 
 ## Architecture Summary
-- **Stack**: React 18 + Vite 6 + Tailwind CSS 4 (Vite plugin) + TypeScript
+- **Stack**: React 19 + Vite 8 + Tailwind CSS 4 (Vite plugin) + TypeScript
 - **Processing**: 100% browser-side processing (no upload backend)
 - **Format Support**: Single source of truth at `src/engine/universal/types.ts`
 - **Worker Tracing**: `src/workers/traceWorker.ts` and `traceWorkerClient.ts`
