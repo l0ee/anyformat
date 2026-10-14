@@ -16,8 +16,8 @@ export function ImageExportSettings({ value, targetExt, disabled, onChange, onAp
   const errors = getImageExportErrors(value);
   const invalid = Object.keys(errors).length > 0;
   return (
-    <details className="basis-full rounded-xl border border-stone-300 p-3 dark:border-slate-700">
-      <summary className="cursor-pointer text-sm font-semibold">Image settings{invalid && <span className="ml-2 text-rose-700 dark:text-rose-300">— Check settings</span>}</summary>
+    <details className="image-export-settings basis-full rounded-xl border border-stone-300 px-3 dark:border-slate-700">
+      <summary className="min-h-11 content-center cursor-pointer text-sm font-semibold">Image settings{invalid && <span className="ml-2 text-rose-700 dark:text-rose-300">— Check settings</span>}</summary>
       <fieldset disabled={disabled} className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
         <legend className="sr-only">Image export settings</legend>
         {(['width', 'height'] as const).map((dimension) => (

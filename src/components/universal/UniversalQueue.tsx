@@ -190,7 +190,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
   };
 
   return (
-    <section aria-labelledby={headingId} className="w-full">
+    <section aria-labelledby={headingId} className="conversion-queue w-full">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h2 id={headingId} className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 dark:text-white">

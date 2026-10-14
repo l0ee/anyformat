@@ -104,7 +104,7 @@ describe('Tailwind 4 migration', () => {
 
   it('keeps workspace overrides above utility layers and preserves reduced-motion rules', async () => {
     const root = await compileUtilities(['rounded-xl', 'p-6', 'hover:scale-105', 'focus-visible:outline-hidden']);
-    expect(declarations(getRule(root, '.app-main :is(button, select)'))['border-radius']).toBe('8px');
+    expect(declarations(getRule(root, '.app-main :is(button, select)'))['border-radius']).toBe('10px');
     expect(getRule(root, '.app-main :is(button, select)').parent.type).toBe('root');
     expect(declarations(getRule(root, '.app-main fieldset')).padding).toBe('20px');
     expect(declarations(getRule(root, '.app-main button:hover')).transform).toBe('scale3d(1, 1, 1)');

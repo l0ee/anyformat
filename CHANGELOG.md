@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.1 — Workspace refresh and server hardening (2026-10-14)
+
+- Refresh light and dark themes, responsive layouts, upload actions, tracing controls, and result styling. Add landing feature cards that open the matching workspace and return keyboard focus to the tool.
+- Improve theme-button state, creator-link labeling, touch targets, modal styling, and keyboard/reduced-motion regression coverage. Keep conversion and tracing entirely browser-side.
+- Check canonical deployment-root containment for assets, symlinked directories, missing ancestors, and the SPA fallback while preserving request-path MIME and cache metadata.
+- Limit compression to 8 MiB per asset and four jobs per server (with a separate buffer-helper pool). Hold capacity until native work and response flushing finish; clean up aborted reads and disconnected streams.
+- Retain environment-file exclusions, reviewed example exceptions, and local experiment/report/crash-dump ignore protections.
+
 ## 2.2.0 — Image exports and conversion reliability
 
 ### New

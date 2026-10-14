@@ -15,7 +15,7 @@ export function Header({ darkMode, setDarkMode, activeTab, setActiveTab, onOpenS
         <div className="workspace-brand">
           <img src={`${import.meta.env.BASE_URL}logo-vibrant.png`} alt="" width={30} height={30} />
           <span>AnyFormat</span>
-          <a className="workspace-author" href="https://github.com/l0ee/anyformat" target="_blank" rel="noopener noreferrer">by l0ee</a>
+          <a className="workspace-author" href="https://github.com/l0ee/anyformat" target="_blank" rel="noopener noreferrer" aria-label="Created by l0ee — view AnyFormat repository">by l0ee</a>
         </div>
         <nav aria-label="Conversion modes" className="workspace-nav">
           <button type="button" aria-pressed={activeTab === 'universal'} onClick={() => setActiveTab('universal')}>
@@ -32,8 +32,8 @@ export function Header({ darkMode, setDarkMode, activeTab, setActiveTab, onOpenS
               <path d="M9 18c-4.51 2-5-2-7-2" />
             </svg>
           </a>
-          <button type="button" onClick={onOpenShortcuts} aria-label="Keyboard shortcuts" title="Keyboard shortcuts"><Keyboard size={18} aria-hidden="true" /></button>
-          <button type="button" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme" title="Toggle theme">{darkMode ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}</button>
+          {onOpenShortcuts && <button type="button" onClick={onOpenShortcuts} aria-label="Keyboard shortcuts" title="Keyboard shortcuts"><Keyboard size={18} aria-hidden="true" /></button>}
+          <button type="button" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme" aria-pressed={darkMode} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}>{darkMode ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}</button>
         </div>
       </div>
     </header>
