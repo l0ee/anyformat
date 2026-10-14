@@ -2,8 +2,9 @@ import { traceWorkerClient } from '../../workers/traceWorkerClient';
 import { optimizeSvg } from '../svgOptimizer';
 import { rasterizeSvgToBlob } from '../svgRasterizer';
 import { convertImageToPdf, convertPdfToImage, convertPdfToSvg, convertSvgToPdf } from '../pdfConverter';
-import { getFileExtension, isSupportedConversion, SUPPORTED_FORMATS, type ConversionStage } from './types';
-import { MAX_CANVAS_EDGE, MAX_CANVAS_PIXELS } from '../canvasLimits';
+import { ConversionOptions, ConversionStage, ImageExportOptions, ImageOutputMetadata, getFileExtension, isSupportedConversion, SUPPORTED_FORMATS } from './types';
+import { calculateOutputDimensions, getImageExportErrors } from './imageTransform';
+import { assertImageDecodeDimensions, assertRasterDecodeBudget } from '../../utils/imageDecodeLimits';
 
 /**
  * Universal File Converter Engine
@@ -13,8 +14,8 @@ export async function convertUniversalFile(
   file: File,
   targetExt: string,
   onProgress?: (percent: number) => void,
-  options?: { pageNumber?: number; signal?: AbortSignal; onStage?: (stage: ConversionStage) => void }
-): Promise<{ blob: Blob; mimeType: string; filename: string }> {
+  options?: ConversionOptions
+): Promise<{ blob: Blob; mimeType: string; filename: string; imageOutput?: ImageOutputMetadata }> {
   const signal = options?.signal;
   const stage = (message: ConversionStage) => {
     signal?.throwIfAborted();
@@ -116,12 +117,13 @@ export async function convertUniversalFile(
   // 5. Standard raster-to-raster conversion (PNG / JPG / WEBP) via Canvas.
   stage('Reading image…');
   onProgress?.(50);
-  const blob = await convertRasterViaCanvas(file, targetLower, signal, () => stage('Preparing download…'));
+  const { blob, imageOutput } = await convertRasterViaCanvas(file, targetLower, options?.image, signal, () => stage('Preparing download…'));
   signal?.throwIfAborted();
   onProgress?.(100);
 
   return {
     blob,
+    imageOutput,
     mimeType: SUPPORTED_FORMATS[targetLower].mime,
     filename: `${baseName}.${targetLower}`,
   };
@@ -130,91 +132,65 @@ export async function convertUniversalFile(
 /**
  * Standard HTML5 Canvas Raster Converter
  */
-function convertRasterViaCanvas(file: File, targetExt: string, signal?: AbortSignal, onEncode?: () => void): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
+async function convertRasterViaCanvas(
+  file: File,
+  targetExt: string,
+  options: ImageExportOptions = {},
+  signal?: AbortSignal,
+  onEncode?: () => void
+): Promise<{ blob: Blob; imageOutput: ImageOutputMetadata }> {
+  const settingsError = Object.values(getImageExportErrors(options))[0];
+  if (settingsError) throw new Error(settingsError);
+  await assertRasterDecodeBudget(file);
+  signal?.throwIfAborted();
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  let canvas: HTMLCanvasElement | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Failed to load image file'));
+      img.src = url;
+    });
+    signal?.throwIfAborted();
+    const sourceWidth = img.naturalWidth || img.width;
+    const sourceHeight = img.naturalHeight || img.height;
+    assertImageDecodeDimensions(sourceWidth, sourceHeight);
+    const imageOutput = calculateOutputDimensions(sourceWidth, sourceHeight, options);
+    const { width, height } = imageOutput;
 
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      try {
-        signal?.throwIfAborted();
-        let width = img.naturalWidth || img.width;
-        let height = img.naturalHeight || img.height;
+    canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context unavailable');
 
-        // Clamp output to browser canvas edge limit and pixel budget
-        if (
-          width > MAX_CANVAS_EDGE ||
-          height > MAX_CANVAS_EDGE ||
-          width * height > MAX_CANVAS_PIXELS
-        ) {
-          const scaleEdge = Math.min(MAX_CANVAS_EDGE / width, MAX_CANVAS_EDGE / height, 1);
-          let w = width * scaleEdge;
-          let h = height * scaleEdge;
-          if (w * h > MAX_CANVAS_PIXELS) {
-            const scalePixel = Math.sqrt(MAX_CANVAS_PIXELS / (w * h));
-            w *= scalePixel;
-            h *= scalePixel;
-          }
-          width = Math.max(1, Math.round(w));
-          height = Math.max(1, Math.round(h));
-          if (width > MAX_CANVAS_EDGE) width = MAX_CANVAS_EDGE;
-          if (height > MAX_CANVAS_EDGE) height = MAX_CANVAS_EDGE;
-        }
+    // JPEG has no alpha channel; flatten transparency onto the selected color.
+    if (targetExt === 'jpg' || targetExt === 'jpeg') {
+      ctx.fillStyle = options.background ?? '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+    }
+    ctx.drawImage(img, 0, 0, width, height);
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Canvas 2D context unavailable'));
-          return;
-        }
-
-        // Fill white background for JPEG if the source has transparency.
-        if (targetExt === 'jpg' || targetExt === 'jpeg') {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const mimeType = SUPPORTED_FORMATS[targetExt].mime;
-        const quality = targetExt === 'jpg' || targetExt === 'jpeg' || targetExt === 'webp' ? 0.92 : undefined;
-
-        onEncode?.();
-        canvas.toBlob(
-          (blob) => {
-            if (signal?.aborted) {
-              reject(signal.reason);
-              return;
-            }
-            if (!blob) {
-              reject(new Error(`Failed to convert image to ${targetExt}`));
-              return;
-            }
-            if (blob.type !== mimeType) {
-              reject(
-                new Error(`Browser returned ${blob.type} instead of requested ${mimeType}. WebP or requested format encoding may not be supported.`)
-              );
-              return;
-            }
-            resolve(blob);
-          },
-          mimeType,
-          quality
-        );
-      } catch (error) {
-        reject(error instanceof Error ? error : new Error(String(error)));
-      }
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Failed to load image file'));
-    };
-
-    img.src = url;
-  });
+    const mimeType = SUPPORTED_FORMATS[targetExt].mime;
+    const quality = ['jpg', 'jpeg', 'webp'].includes(targetExt) ? (options.quality ?? 0.92) : undefined;
+    const outputCanvas = canvas;
+    onEncode?.();
+    const blob = await new Promise<Blob | null>((resolve) => outputCanvas.toBlob(resolve, mimeType, quality));
+    signal?.throwIfAborted();
+    if (!blob) throw new Error(`Failed to convert image to ${targetExt}`);
+    if (blob.type !== mimeType) {
+      throw new Error(`Browser returned ${blob.type} instead of requested ${mimeType}. WebP or requested format encoding may not be supported.`);
+    }
+    return { blob, imageOutput };
+  } finally {
+    img.onload = null;
+    img.onerror = null;
+    img.removeAttribute?.('src');
+    URL.revokeObjectURL(url);
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }
 }

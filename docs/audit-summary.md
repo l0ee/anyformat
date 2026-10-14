@@ -7,17 +7,22 @@ This document records verified safeguards and repository boundaries. It is not a
 | Area | Safeguard | Maintained evidence |
 | --- | --- | --- |
 | Production server | Rejects invalid request paths, handles range requests, and applies security headers. | `test/start-server.test.js` |
-| ZIP exports | Resolves filename collisions instead of overwriting results. | `src/engine/zipExporter.test.ts` |
-| SVG processing | Validates canvas dimensions and resolves SVG sizes before rasterizing. | `src/engine/svgRasterizer.test.ts` |
+| ZIP exports | Flattens and normalizes entry names, preserving all outputs through case-insensitive collisions. | `src/engine/zipExporter.test.ts` and `tests/e2e/zip-export.e2e.ts` |
+| SVG processing | Uses image-context previews, validates canvas dimensions, and releases export resources on success and failure. | Rasterizer unit tests and SVG preview security browser tests |
+| Raster memory | Checks recognized headers before previews/decoding and validates decoded and output dimensions. | `imageDecodeLimits.ts`, converter unit tests, and image-preflight browser tests |
+| PDF and CSP | Serves local codec assets and renders fonts, JPEG, and JPEG2000 under Node and HTML-only production policies. | `tests/e2e/production-csp.e2e.ts` |
 | Tracing | Checks contour behavior, transparency, viewBox dimensions, and color-layer output. | Monochrome/color tracer tests and `tracingIntegration.test.ts` |
 | Worker lifecycle | Queues tasks, isolates transferred bytes, handles failures, and supports cancellation. | `src/workers/traceWorkerClient.test.ts` |
 | Conversion workflows | Preserves PDF page filenames, keeps completed results on stop, and discards late cancelled results. | Converter unit tests and browser workflow tests |
 | Supported formats | Capabilities are defined in one registry and checked by tests. | `src/engine/universal/types.ts` and its tests |
 | UI behavior | Tests cover keyboard controls, previews, mobile layout, and reduced-motion preferences. | `tests/e2e/` |
+| CSS toolchain | Tailwind 4 removes the vulnerable v3 dependency chain while preserving styling and focus behavior. | `tests/build/tailwind-migration.test.js` and browser migration tests |
 
 Run the normal checks with `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build`. Install Playwright's browser dependencies before running `npm run test:e2e`. Required CI checks Chromium, Firefox, and WebKit before deployment.
 
 The additional `npm run test:stress` command checks monochrome and color tracing at 3840×2160. It is opt-in to keep regular tests lightweight; passing it does not establish safe performance for every large input or device.
+
+Full and production-only npm audits reported zero known advisories after the Tailwind migration. Recheck when dependencies change. Linux WebKit verification and its host-library setup are documented in [webkit-on-fedora.md](webkit-on-fedora.md); this does not replace native Safari or physical-device sharing checks.
 
 ## Files that belong in the repository
 

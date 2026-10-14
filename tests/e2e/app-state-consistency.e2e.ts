@@ -34,6 +34,66 @@ test('keyboard shortcuts toggle one accessible help dialog', async ({ page }) =>
   await expect(dialogs).toHaveCount(0);
 });
 
+test('workspace shortcuts preserve the focused queue search', async ({ page }) => {
+  await page.goto('/');
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8"/></svg>');
+  await page.locator('input[type="file"]').setInputFiles(
+    [1, 2, 3].map((index) => ({ name: `search-${index}.svg`, mimeType: 'image/svg+xml', buffer: svg })),
+  );
+
+  const search = page.getByLabel('Search queue');
+  await search.fill('search-1');
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue('search-1');
+  await expect(page.getByRole('button', { name: 'Convert files', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: 'Convert files', exact: true }).focus();
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(page.getByRole('button', { name: 'Create SVG', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+for (const key of ['Tab', 'Shift+Tab']) {
+  test(`help dialog recovers ${key} focus from outside and restores its opener`, async ({ page }) => {
+    await page.goto('/');
+    const opener = page.getByRole('button', { name: 'Keyboard shortcuts', exact: true });
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
+    const close = dialog.getByRole('button', { name: 'Close dialog' });
+    await expect(close).toBeFocused();
+
+    await page.getByRole('button', { name: 'Convert files', exact: true }).focus();
+    await page.keyboard.press(key);
+    await expect(close).toBeFocused();
+    for (let index = 0; index < 3; index++) {
+      await page.keyboard.press(key);
+      await expect(close).toBeFocused();
+    }
+
+    await dialog.locator('[tabindex="-1"]').focus();
+    await page.keyboard.press(key);
+    await expect(close).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+}
+
+test('help dialog retains its original focus restoration target across app updates', async ({ page }) => {
+  await page.goto('/');
+  const opener = page.getByRole('button', { name: 'Keyboard shortcuts', exact: true });
+  await opener.click();
+  const close = page.getByRole('button', { name: 'Close dialog' });
+  await expect(close).toBeFocused();
+
+  await page.keyboard.press('Shift+T');
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(close).toBeFocused();
+  await close.click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+
 test('preserves PDF page metadata when its count resolves during conversion', async ({ page }) => {
   await page.addInitScript(() => {
     const probe = window as PdfRaceProbe;

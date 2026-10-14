@@ -18,16 +18,23 @@ import { ShieldCheck, Cpu, Layers, X } from 'lucide-react';
 
 import { convertUniversalFile } from './engine/universal/converterEngine';
 import {
+  getDefaultExportTarget,
   getFileExtension,
   getUniqueFormatLabels,
   isSupportedSourceExtension,
+  isSupportedConversion,
+  supportsImageExportSettings,
   MAX_FILE_SIZE_BYTES,
   MAX_FILE_SIZE_LABEL,
   SUPPORTED_FORMATS,
   UniversalTaskItem,
+  ImageExportOptions,
   VECTOR_STUDIO_INPUT_FORMATS,
 } from './engine/universal/types';
 import { getPdfPageCount } from './engine/pdfConverter';
+import { assertRasterDecodeBudget } from './utils/imageDecodeLimits';
+import { getImageExportErrors } from './engine/universal/imageTransform';
+import { resetUniversalResult } from './utils/universalResultUtils';
 
 import { traceWorkerClient } from './workers/traceWorkerClient';
 import { extractPalette } from './engine/paletteExtractor';
@@ -125,9 +132,23 @@ export const App: React.FC = () => {
     removeMetadata: true,
     minify: false,
   });
+  const [debouncedOptOpts, setDebouncedOptOpts] = useState(optOpts);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedOptOpts(optOpts), 100);
+    return () => clearTimeout(timer);
+  }, [optOpts]);
 
   const [rawSvg, setRawSvg] = useState<string>('');
-  const [optimizedSvg, setOptimizedSvg] = useState<string>('');
+  const [optimizedResult, setOptimizedResult] = useState<{
+    source: string;
+    options: OptimizeOptions;
+    svg: string;
+  } | null>(null);
+  const optimizedSvg = optimizedResult?.source === rawSvg ? optimizedResult.svg : '';
+  const isOptimizationPending = Boolean(rawSvg) && (
+    optimizedResult?.source !== rawSvg || optimizedResult.options !== optOpts
+  );
   const [palette, setPalette] = useState<PaletteColor[]>([]);
   const [dimensions, setDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -181,6 +202,7 @@ export const App: React.FC = () => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
     });
+    universalItemsRef.current = [];
   }, []);
 
   // Handle preset application
@@ -250,10 +272,6 @@ export const App: React.FC = () => {
       if (processId !== singleProcessIdRef.current) return;
       setRawSvg(rawResultSvg);
       setDimensions({ width: w, height: h });
-
-      // Apply optimization
-      const optResult = optimizeSvg(rawResultSvg, optOptsRef.current);
-      setOptimizedSvg(optResult.svg);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
         return;
@@ -284,16 +302,56 @@ export const App: React.FC = () => {
   // Optimization settings are intentionally excluded; the next effect updates only the SVG output.
   }, [selectedFile, tracingMode, monoOpts, colorOpts, processSingleFile]);
 
-  // Re-run optimization when cleanup settings change
+  // Optimize each new trace once, coalescing rapid cleanup setting changes.
   useEffect(() => {
     if (rawSvg) {
-      const optResult = optimizeSvg(rawSvg, optOpts);
-      setOptimizedSvg(optResult.svg);
+      const optResult = optimizeSvg(rawSvg, debouncedOptOpts);
+      setOptimizedResult({ source: rawSvg, options: debouncedOptOpts, svg: optResult.svg });
     }
-  }, [rawSvg, optOpts]);
+  }, [rawSvg, debouncedOptOpts]);
+
+  // Serialize bounded header checks so rapid additions preserve order and
+  // consult the latest queue state before allocating any preview URLs.
+  const intakeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const intakeVersionsRef = useRef({ single: 0, batch: 0, universal: 0 });
+  useEffect(() => () => {
+    intakeVersionsRef.current.single++;
+    intakeVersionsRef.current.batch++;
+    intakeVersionsRef.current.universal++;
+  }, []);
+
+  const scheduleFileIntake = (mode: 'single' | 'batch' | 'universal', files: File[]) => {
+    if (mode === 'single') intakeVersionsRef.current.single++;
+    const version = intakeVersionsRef.current[mode];
+    intakeQueueRef.current = intakeQueueRef.current.then(async () => {
+      const accepted: File[] = [];
+      const errors: string[] = [];
+      for (const file of files) {
+        if (intakeVersionsRef.current[mode] !== version) return;
+        try {
+          // Byte-size rejection remains in the existing handlers. Avoid even
+          // reading oversized files; SVG/PDF have no raster header to inspect.
+          if (file.size <= MAX_FILE_SIZE_BYTES) await assertRasterDecodeBudget(file);
+          accepted.push(file);
+        } catch (error) {
+          errors.push(`${file.name}: ${error instanceof Error ? error.message : 'Image preflight failed.'}`);
+        }
+      }
+      if (intakeVersionsRef.current[mode] !== version) return;
+      if (accepted.length) validatedIntakeRef.current[mode](accepted);
+      if (errors.length) showToast(errors.join(' '), 'error');
+    }).catch((error) => {
+      showToast(error instanceof Error ? error.message : 'Could not add files.', 'error');
+    });
+  };
+
+  const handleSingleFileSelect = (files: FileList | File[]) => scheduleFileIntake('single', Array.from(files).slice(0, 1));
+  const handleBatchFileSelect = (files: FileList | File[]) => scheduleFileIntake('batch', Array.from(files));
+  const handleUniversalFilesAdded = (files: File[]) => scheduleFileIntake('universal', files);
 
   // Reset single file state and revoke Object URL
   const resetSingleFileState = () => {
+    intakeVersionsRef.current.single++;
     singleProcessIdRef.current += 1;
     singleAbortControllerRef.current?.abort();
     singleAbortControllerRef.current = null;
@@ -303,13 +361,13 @@ export const App: React.FC = () => {
     setSelectedFile(null);
     setOriginalUrl('');
     setRawSvg('');
-    setOptimizedSvg('');
+    setOptimizedResult(null);
     setPalette([]);
     setDimensions({ width: 0, height: 0 });
   };
 
   // Handle single file drop
-  const handleSingleFileSelect = (files: FileList | File[]) => {
+  const handleValidatedSingleFileSelect = (files: File[]) => {
     const file = files[0];
     if (file && isSupportedRasterFile(file)) {
       if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -327,7 +385,7 @@ export const App: React.FC = () => {
   };
 
   // Handle batch file drop
-  const handleBatchFileSelect = (files: FileList | File[]) => {
+  const handleValidatedBatchFileSelect = (files: File[]) => {
     const selectedFiles = Array.from(files);
     const supportedFiles = selectedFiles.filter(isSupportedRasterFile);
     const rejectedFormatCount = selectedFiles.length - supportedFiles.length;
@@ -349,7 +407,7 @@ export const App: React.FC = () => {
       return;
     }
 
-    const availableCapacity = Math.max(0, MAX_QUEUE_CAPACITY - batchItems.length);
+    const availableCapacity = Math.max(0, MAX_QUEUE_CAPACITY - batchItemsRef.current.length);
     const acceptedFiles = validFiles.slice(0, availableCapacity);
     const overCapCount = validFiles.length - acceptedFiles.length;
 
@@ -363,6 +421,7 @@ export const App: React.FC = () => {
     }));
 
     if (newItems.length > 0) {
+      batchItemsRef.current = [...batchItemsRef.current, ...newItems];
       setBatchItems((prev) => [...prev, ...newItems]);
     }
 
@@ -392,9 +451,11 @@ export const App: React.FC = () => {
   };
 
   const handleClearBatchQueue = () => {
+    intakeVersionsRef.current.batch++;
     batchItems.forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     });
+    batchItemsRef.current = [];
     setBatchItems([]);
     showToast('Batch queue cleared', 'info');
   };
@@ -419,13 +480,15 @@ export const App: React.FC = () => {
     const finalStatuses = new Map<string, 'idle' | 'processing' | 'completed' | 'error'>();
     batchItemsRef.current.forEach((item) => finalStatuses.set(item.id, item.status));
 
-    try {
+    const runWorker = async () => {
       while (!controller.signal.aborted) {
         const nextItem = batchItemsRef.current.find(
           (item) => item.status !== 'completed' && item.status !== 'processing' && !processedIds.has(item.id) && (ids ? ids.includes(item.id) : true)
         );
         if (!nextItem) break;
 
+        // Claim synchronously before yielding; React state/ref synchronization
+        // is not a lock and another runner may still see this item as idle.
         processedIds.add(nextItem.id);
         const currentId = nextItem.id;
         const currentFile = nextItem.file;
@@ -507,6 +570,10 @@ export const App: React.FC = () => {
           });
         }
       }
+    };
+
+    try {
+      await Promise.all(Array.from({ length: traceWorkerClient.concurrency }, runWorker));
     } finally {
       isBatchProcessingRef.current = false;
       setIsBatchProcessing(false);
@@ -601,10 +668,11 @@ export const App: React.FC = () => {
   };
 
   // Universal File Handlers
-  const handleUniversalFilesAdded = (files: File[]) => {
-    const valid: File[] = [];
+  const handleValidatedUniversalFilesAdded = (files: File[]) => {
+    const valid: Pick<UniversalTaskItem, 'file' | 'sourceExt' | 'targetExt'>[] = [];
     const oversized: File[] = [];
     const unsupported: File[] = [];
+    const unavailable: File[] = [];
 
     files.forEach((file) => {
       const ext = getFileExtension(file.name);
@@ -613,7 +681,9 @@ export const App: React.FC = () => {
       } else if (file.size > MAX_FILE_SIZE_BYTES) {
         oversized.push(file);
       } else {
-        valid.push(file);
+        const targetExt = getDefaultExportTarget(ext);
+        if (!targetExt) unavailable.push(file);
+        else valid.push({ file, sourceExt: ext, targetExt });
       }
     });
 
@@ -629,31 +699,32 @@ export const App: React.FC = () => {
         'error'
       );
     }
+    if (unavailable.length > 0) {
+      showToast(
+        `${unavailable.length} file${unavailable.length === 1 ? '' : 's'} had no supported default output format and ${unavailable.length === 1 ? 'was' : 'were'} skipped.`,
+        'error'
+      );
+    }
 
-    const availableCapacity = Math.max(0, MAX_QUEUE_CAPACITY - universalItems.length);
+    const availableCapacity = Math.max(0, MAX_QUEUE_CAPACITY - universalItemsRef.current.length);
     const acceptedFiles = valid.slice(0, availableCapacity);
     const overCapCount = valid.length - acceptedFiles.length;
 
-    const newTasks: UniversalTaskItem[] = acceptedFiles.map((file) => {
-      const ext = getFileExtension(file.name);
-      const spec = Object.prototype.hasOwnProperty.call(SUPPORTED_FORMATS, ext)
-        ? SUPPORTED_FORMATS[ext]
-        : undefined;
-      const targetExt = spec?.canExportTo[0] || 'svg';
-      return {
-        id: Math.random().toString(36).substring(2, 9),
-        file,
-        name: file.name,
-        sourceExt: ext,
-        targetExt,
-        status: 'idle',
-        progress: 0,
-        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-        pageNumber: ext === 'pdf' ? 1 : undefined,
-      };
-    });
+    // All source/target metadata is validated before allocating preview URLs.
+    const newTasks: UniversalTaskItem[] = acceptedFiles.map(({ file, sourceExt, targetExt }) => ({
+      id: Math.random().toString(36).substring(2, 9),
+      file,
+      name: file.name,
+      sourceExt,
+      targetExt,
+      status: 'idle',
+      progress: 0,
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      pageNumber: sourceExt === 'pdf' ? 1 : undefined,
+    }));
 
     if (newTasks.length > 0) {
+      universalItemsRef.current = [...universalItemsRef.current, ...newTasks];
       setUniversalItems((prev) => [...prev, ...newTasks]);
 
       // Read PDF page counts asynchronously with controlled concurrency (max 2 parallel tasks)
@@ -695,32 +766,49 @@ export const App: React.FC = () => {
         `Accepted ${acceptedFiles.length} file${acceptedFiles.length === 1 ? '' : 's'}; skipped ${overCapCount} file${overCapCount === 1 ? '' : 's'} (${overCapCount} over the 100-file queue limit).`,
         'error'
       );
-    } else {
+    } else if (newTasks.length > 0 && oversized.length === 0 && unsupported.length === 0 && unavailable.length === 0) {
       showToast(`Added ${newTasks.length} file(s) to AnyFormat`, 'info');
     }
   };
 
   const handleUniversalPageChange = (id: string, pageNumber: number) => {
-    setUniversalItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, pageNumber } : item))
-    );
+    if (isUniversalProcessingRef.current) return;
+    const updated = universalItemsRef.current.map((item) => {
+      if (item.id !== id || item.pageNumber === pageNumber) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), pageNumber };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
   };
 
   const handleUniversalTargetChange = (id: string, targetExt: string) => {
-    setUniversalItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, targetExt } : item))
-    );
+    if (isUniversalProcessingRef.current) return;
+    const updated = universalItemsRef.current.map((item) => {
+      if (item.id !== id || item.targetExt === targetExt || !isSupportedConversion(item.sourceExt, targetExt)) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), targetExt };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
   };
 
   const handleUniversalApplyAllTarget = (targetExt: string) => {
-    const supportsEveryItem = universalItems.every((item) =>
-      SUPPORTED_FORMATS[item.sourceExt]?.canExportTo.includes(targetExt)
+    if (isUniversalProcessingRef.current) return;
+    const supportsEveryItem = universalItemsRef.current.every((item) =>
+      isSupportedConversion(item.sourceExt, targetExt)
     );
     if (!supportsEveryItem) {
       showToast(`.${targetExt.toUpperCase()} is not available for every queued source file.`, 'error');
       return;
     }
-    setUniversalItems((prev) => prev.map((item) => ({ ...item, targetExt })));
+    const updated = universalItemsRef.current.map((item) => {
+      if (item.targetExt === targetExt) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), targetExt };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
     showToast(`Set all target formats to .${targetExt.toUpperCase()}`, 'info');
   };
 
@@ -753,9 +841,6 @@ export const App: React.FC = () => {
       .map((item) => item.id);
     if (failedIds.length === 0) return;
 
-    isUniversalProcessingRef.current = true;
-    setIsUniversalProcessing(true);
-
     const updated = universalItemsRef.current.map((item) =>
       failedIds.includes(item.id)
         ? { ...item, status: 'idle' as const, error: undefined, progress: 0 }
@@ -764,27 +849,49 @@ export const App: React.FC = () => {
     universalItemsRef.current = updated;
     setUniversalItems(updated);
 
-    startUniversalConversion(failedIds, true);
+    startUniversalConversion(failedIds);
   };
 
   const handleClearUniversalQueue = () => {
+    intakeVersionsRef.current.universal++;
     universalItems.forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
     });
+    universalItemsRef.current = [];
     setUniversalItems([]);
     showToast('AnyFormat queue cleared', 'info');
   };
 
-  const startUniversalConversion = async (targetIds?: string[] | unknown, isDirectRetry = false) => {
-    if (isUniversalProcessingRef.current && !isDirectRetry) return;
+  const handleImageOptionsChange = (id: string, options: ImageExportOptions, applyAll = false) => {
+    if (isUniversalProcessingRef.current) return;
+    if (applyAll && Object.keys(getImageExportErrors(options)).length > 0) return;
+    const updated = universalItemsRef.current.map((item) => {
+      const compatible = supportsImageExportSettings(item.sourceExt, item.targetExt);
+      if (!compatible || (!applyAll && item.id !== id)) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), imageOptions: { ...options } };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
+  };
+
+  const startUniversalConversion = async (targetIds?: string[] | unknown) => {
+    if (isUniversalProcessingRef.current) return;
+    const ids = Array.isArray(targetIds) ? targetIds : undefined;
+    const invalidItem = universalItemsRef.current.find((item) => item.status === 'idle'
+      && (!ids || ids.includes(item.id))
+      && supportsImageExportSettings(item.sourceExt, item.targetExt)
+      && Object.keys(getImageExportErrors(item.imageOptions)).length > 0);
+    if (invalidItem) {
+      showToast(`Fix image settings for ${invalidItem.name} before converting.`, 'error');
+      return;
+    }
     isUniversalProcessingRef.current = true;
     setIsUniversalProcessing(true);
     setIsUniversalStopping(false);
     const controller = new AbortController();
     universalAbortControllerRef.current = controller;
-
-    const ids = Array.isArray(targetIds) ? targetIds : undefined;
 
     let processedCount = 0;
     let failedCount = 0;
@@ -828,6 +935,7 @@ export const App: React.FC = () => {
             },
             {
               pageNumber: currentPageNumber,
+              image: { ...nextTask.imageOptions },
               signal: controller.signal,
               onStage: (stage) => {
                 if (!controller.signal.aborted) setUniversalItems((current) => current.map((item) => item.id === currentId ? { ...item, stage } : item));
@@ -836,6 +944,8 @@ export const App: React.FC = () => {
           );
 
           controller.signal.throwIfAborted();
+          // A cleared or unmounted queue must not retain a late conversion URL.
+          if (!universalItemsRef.current.some((item) => item.id === currentId)) continue;
           const resultUrl = URL.createObjectURL(result.blob);
           setUniversalItems((current) =>
             current.map((i) =>
@@ -849,6 +959,7 @@ export const App: React.FC = () => {
                     resultFilename: result.filename,
                     resultUrl,
                     resultSize: result.blob.size,
+                    imageOutput: result.imageOutput,
                   }
                 : i
             )
@@ -991,6 +1102,18 @@ export const App: React.FC = () => {
     },
   });
 
+  const validatedIntakeRef = useRef({
+    single: handleValidatedSingleFileSelect,
+    batch: handleValidatedBatchFileSelect,
+    universal: handleValidatedUniversalFilesAdded,
+  });
+  useEffect(() => {
+    validatedIntakeRef.current = {
+      single: handleValidatedSingleFileSelect,
+      batch: handleValidatedBatchFileSelect,
+      universal: handleValidatedUniversalFilesAdded,
+    };
+  });
   const handleSingleFileSelectRef = useRef(handleSingleFileSelect);
   const handleBatchFileSelectRef = useRef(handleBatchFileSelect);
   const handleUniversalFilesAddedRef = useRef(handleUniversalFilesAdded);
@@ -1169,7 +1292,10 @@ export const App: React.FC = () => {
                       onDownloadPng={downloadPngFile}
                       onDownloadWebp={downloadWebpFile}
                       isExporting={isExporting}
-                      isProcessing={isProcessing}
+                      isProcessing={isProcessing || isOptimizationPending}
+                      exportBaseName={selectedFile?.name.replace(/\.[^/.]+$/, '') || 'vector'}
+                      exportWidth={dimensions.width}
+                      exportHeight={dimensions.height}
                     />
                   </div>
                 </div>
@@ -1222,6 +1348,7 @@ export const App: React.FC = () => {
 
             {universalItems.length > 0 && (
               <UniversalQueue
+                onImageOptionsChange={handleImageOptionsChange}
                 items={universalItems}
                 onTargetFormatChange={handleUniversalTargetChange}
                 onApplyAllTargetFormat={handleUniversalApplyAllTarget}

@@ -1,8 +1,55 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
+@config "../tailwind.config.js";
+@source "../index.html";
+@source "./**/*.{js,ts,jsx,tsx}";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Preserve the v3 scales used by existing components during the v4 migration. */
+@theme {
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --radius-sm: 0.125rem;
+  --blur-sm: 4px;
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+}
+
+@utility bg-gradient-to-r {
+  --tw-gradient-position: to right;
+  background-image: linear-gradient(var(--tw-gradient-stops));
+}
+
+/* Retain sibling margins, including hidden-child behavior, from the v3 UI. */
+@utility space-y-* {
+  & > :not(:last-child) { margin-block: 0; }
+  & > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(--value(integer) * var(--spacing) * (1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(--value(integer) * var(--spacing) * var(--tw-space-y-reverse));
+  }
+}
+
+@utility space-x-* {
+  & > :not(:last-child) { margin-inline: 0; }
+  & > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 0;
+    margin-right: calc(--value(integer) * var(--spacing) * var(--tw-space-x-reverse));
+    margin-left: calc(--value(integer) * var(--spacing) * (1 - var(--tw-space-x-reverse)));
+  }
+}
 
 @layer base {
+  *, ::before, ::after, ::backdrop, ::file-selector-button { border-color: #e5e7eb; }
+  button:not(:disabled), [role='button']:not(:disabled) { cursor: pointer; }
+  input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
+  input { background-color: revert-layer; }
+  :disabled { opacity: revert-layer; }
   :root {
     color-scheme: light;
     --app-surface: #fff;
@@ -27,6 +74,8 @@
 }
 
 @layer components {
+  .queue-row { content-visibility: auto; contain-intrinsic-size: auto 100px; }
+  .queue-row[data-expanded='true'] { content-visibility: visible; }
   .app-shell { background: #f7f8fa; }
   .dark .app-shell { background: #10151e; }
   .workspace-header { position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--app-border); background: var(--app-surface); }
@@ -140,13 +189,15 @@
   .workspace-footer-links { display: flex; gap: 20px; align-items: center; }
   .workspace-footer a { min-height: 36px; display: inline-flex; align-items: center; }
   .workspace-footer a:hover { color: #be123c; }
-  .app-main :is(button,select) { border-radius: 8px; box-shadow: none; }
-  .app-main button { transition: background-color 160ms ease, color 160ms ease; }
-  .app-main button:hover { transform: none; }
-  .app-main button[class*='bg-gradient-to-r'] { background-image: none; background-color: #e11d48; }
-  .app-main button[class*='from-emerald'] { background-color: #047857; }
-  .app-main fieldset { padding: 20px; }
 }
+
+/* These high-specificity workspace overrides preceded v4's cascade layers. */
+.app-main :is(button,select) { border-radius: 8px; box-shadow: none; }
+.app-main button { transition: background-color 160ms ease, color 160ms ease; }
+.app-main button:hover { transform: none; scale: 1; }
+.app-main button[class*='bg-gradient-to-r'] { background-image: none; background-color: #e11d48; }
+.app-main button[class*='from-emerald'] { background-color: #047857; }
+.app-main fieldset { padding: 20px; }
 
 @media (max-width: 640px) {
   .workspace-header-inner { flex-wrap: wrap; gap: 8px; padding: 8px 16px; }

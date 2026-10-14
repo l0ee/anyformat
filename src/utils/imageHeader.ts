@@ -9,7 +9,7 @@ export interface ImageDimensions {
   height: number;
 }
 
-export async function readImageHeaderDimensions(file: File): Promise<ImageDimensions | null> {
+export async function readImageHeaderDimensions(file: Blob): Promise<ImageDimensions | null> {
   try {
     const slice = file.slice(0, 65536);
     const buffer = await slice.arrayBuffer();
@@ -47,8 +47,11 @@ export async function readImageHeaderDimensions(file: File): Promise<ImageDimens
       view.getUint8(1) === 0x4d &&
       length >= 26
     ) {
-      const width = Math.abs(view.getInt32(18, true));
-      const height = Math.abs(view.getInt32(22, true));
+      const headerSize = view.getUint32(14, true);
+      if (![12, 40, 52, 56, 64, 108, 124].includes(headerSize) || length < 14 + headerSize) return null;
+      // CORE uses 16-bit dimensions; known INFO variants use 32-bit fields.
+      const width = headerSize === 12 ? view.getUint16(18, true) : Math.abs(view.getInt32(18, true));
+      const height = headerSize === 12 ? view.getUint16(20, true) : Math.abs(view.getInt32(22, true));
       if (width > 0 && height > 0) return { width, height };
     }
 

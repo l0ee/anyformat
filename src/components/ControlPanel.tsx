@@ -22,7 +22,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const idPrefix = useId();
   const controlId = (name: string) => `${idPrefix}-${name}`;
-  const focusClasses = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900';
+  const focusClasses = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900';
 
   return (
     <fieldset disabled={disabled} className={`app-panel text-stone-900 dark:text-white rounded-2xl p-6 space-y-5 font-['Plus_Jakarta_Sans',sans-serif] ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>

@@ -1,5 +1,6 @@
 import { Point, MonochromeOptions, TraceResult, TurnPolicy } from './types';
 import { restoreTraceDimensions } from '../workers/traceWorkerUtils';
+import { assertImageDecodeDimensions, assertRasterDecodeBudget } from '../utils/imageDecodeLimits';
 
 interface CurveSegment {
   type: 'line' | 'bezier';
@@ -48,13 +49,21 @@ class Path {
   curves: CurveSegment[] = [];
 }
 
-export function loadImageData(file: File, maxDimension: number = 1024): Promise<{ imageData: ImageData; origWidth: number; origHeight: number }> {
+export async function loadImageData(file: File, maxDimension: number = 1024): Promise<{ imageData: ImageData; origWidth: number; origHeight: number }> {
+  await assertRasterDecodeBudget(file);
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       const origWidth = img.width;
       const origHeight = img.height;
+      try {
+        assertImageDecodeDimensions(origWidth, origHeight);
+      } catch (error) {
+        URL.revokeObjectURL(url);
+        reject(error);
+        return;
+      }
 
       let width = origWidth;
       let height = origHeight;

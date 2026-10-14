@@ -1,4 +1,4 @@
-# AnyFormat 2.1
+# AnyFormat 2.2
 
 **Image and PDF conversion. SVG tools. All in your browser.**
 
@@ -20,7 +20,15 @@ AnyFormat helps you change image formats, turn pictures into SVG graphics, and e
 
 Start with the [live application](https://l0ee.github.io/anyformat/), or jump to [local setup](#run-locally) to explore the code.
 
-## What's new in 2.1
+## What's new in 2.2
+
+- Resize PNG, JPEG, and WebP exports, adjust JPEG/WebP quality, and choose a background for transparent images exported as JPEG. Same-format exports apply these settings too.
+- Prepare a Studio image for a separate save/share tap, or share a completed conversion through your device's native menu when supported. See [mobile saving and sharing](docs/mobile-saving-and-sharing.md) for platform behavior and device-test scope.
+- Process SVG batches with bounded parallel tracing and keep the latest cleanup settings in exported files.
+- Safer ZIP names, early image-size checks, and more reliable PDF rendering under production security policies, including WebKit.
+- Tailwind CSS 4 styling with the existing layout, themes, and accessibility controls preserved.
+
+## Retained from 2.1
 
 - **Know what's happening:** conversion stages such as Reading image, Rendering PDF page, and Tracing shapes, plus a count of finished files.
 - **Stop and resume:** stop either queue without losing completed results, then resume the files still marked Ready. Some canvas/PDF operations finish their current browser step before stopping safely.
@@ -48,6 +56,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history. No installation or acc
 | **Convert files** | Convert supported images, SVG files, and PDF pages. Choose an output for each file, preview results, and download completed files. |
 | **Create SVG** | Turn a picture into an SVG: a graphic made from shapes and curves that can scale without losing sharpness. Adjust colors and detail, then compare the result with the original. Add several images to use shared batch settings and export a ZIP. |
 
+![Vector Studio tracing settings and before-and-after image comparison](docs/images/vector-studio.png)
+
 ## How to use it
 
 1. **Add your files.** Choose files, drag them into the upload area, or paste a supported image from your clipboard.
@@ -70,9 +80,9 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history. No installation or acc
 
 | Input | Available outputs |
 | --- | --- |
-| PNG | JPEG, WebP, SVG, PDF |
-| JPEG | PNG, WebP, SVG, PDF |
-| WebP | PNG, JPEG, SVG, PDF |
+| PNG | JPEG, WebP, SVG, PDF, PNG |
+| JPEG | PNG, WebP, SVG, PDF, JPEG |
+| WebP | PNG, JPEG, SVG, PDF, WebP |
 | BMP | PNG, JPEG, WebP, SVG, PDF |
 | SVG | PNG, JPEG, WebP, PDF |
 | PDF | PNG, JPEG, WebP, SVG |
@@ -85,7 +95,7 @@ Create SVG accepts **PNG, JPEG, WebP, BMP, and GIF** images for tracing. GIF is 
 
 - **PDF conversion works one selected page at a time.** PDF-to-SVG creates a traced version of the rendered page; it does not preserve the original text or vector objects.
 - **SVG tracing redraws a picture as shapes.** Simple logos and illustrations usually need less tuning than detailed photos. Results depend on your image and settings.
-- **Files are limited to 100 MB each.** Batch queues hold up to 100 files. Large images may be resized to stay within browser memory limits.
+- **Files are limited to 100 MB each.** Batch queues hold up to 100 files. Recognized raster headers exceeding 16,384 pixels per edge or 64 megapixels are rejected before decoding; output images may be reduced to fit the smaller canvas budget.
 - **Browser support can vary.** A format listed here may still depend on your browser's image decoder or encoder. Unsupported paths, including ICO conversion, are not offered.
 
 The supported-format definitions are maintained in [`src/engine/universal/types.ts`](src/engine/universal/types.ts).
@@ -136,6 +146,8 @@ npx playwright install chromium firefox webkit
 
 On Debian or Ubuntu, add `--with-deps` if browser system libraries are missing. To run only Chromium, use `npx playwright test --project=chromium`.
 
+For Nobara/Fedora's WebKit library requirements, see [the verified local setup](docs/webkit-on-fedora.md).
+
 Tests cover conversion paths, tracing, file limits, previews, queue behavior, accessibility, and the production server. New formats should have verified conversion paths before they are advertised.
 
 The 4K stress checks are opt-in and use larger image buffers. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the audit summary](docs/audit-summary.md) for test scope and publication boundaries.
@@ -143,7 +155,7 @@ The 4K stress checks are opt-in and use larger image buffers. See [CONTRIBUTING.
 ## Built with
 
 - **React 18 and TypeScript** for the interface and application logic.
-- **Vite 6 and Tailwind CSS** for development, builds, and styling.
+- **Vite 6 and Tailwind CSS 4** for development, builds, and styling.
 - **Browser Canvas and Web Workers** for image processing and background tracing.
 - **PDF.js and pdf-lib** for reading PDF pages and creating PDF files.
 - **JSZip** for batch downloads and **Lucide React** for interface icons.

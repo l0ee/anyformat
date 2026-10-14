@@ -55,7 +55,7 @@ export const PresetSelector: React.FC<PresetSelectorProps> = ({
                 className="peer sr-only"
               />
               <span
-                className={`block min-h-20 p-3 text-left transition-colors bg-white dark:bg-slate-900 border rounded-xl text-stone-900 dark:text-white peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950 ${
+                className={`block min-h-20 p-3 text-left transition-colors bg-white dark:bg-slate-900 border rounded-xl text-stone-900 dark:text-white peer-focus-visible:outline-hidden peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950 ${
                   active
                      ? 'preset-selection-feedback border-pink-500 bg-pink-100/60 dark:bg-slate-800/90 dark:border-pink-500 ring-2 ring-pink-500/20 shadow-md'
                     : 'border-stone-300/70 dark:border-slate-800 hover:bg-[#fdfaf6] dark:hover:bg-slate-800 shadow-sm'

@@ -43,6 +43,7 @@ coverage/
 playwright-report/
 test-results/
 blob-report/
+.playwright-mcp/
 
 # Crash dumps and local archives
 core

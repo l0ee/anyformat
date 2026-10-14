@@ -8,7 +8,7 @@ import {
 import { traceMonochromeFromImageData } from '../engine/monochromeTracer';
 import { traceColorFromImageData } from '../engine/colorTracer';
 import { restoreTraceDimensions } from './traceWorkerUtils';
-import { readImageHeaderDimensions } from '../utils/imageHeader';
+import { assertImageDecodeDimensions, assertRasterDecodeBudget } from '../utils/imageDecodeLimits';
 
 export interface WorkerItem {
   worker: Worker;
@@ -40,16 +40,24 @@ export class TraceWorkerClient {
     this.initWorkers();
   }
 
+  public get concurrency(): number {
+    return Math.max(1, this.workers.length);
+  }
+
   private initWorkers(): void {
     if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
-      try {
-        const item = this.createWorkerItem();
-        this.workers.push(item);
-        this.isWorkerSupported = true;
-      } catch (e) {
-        console.warn('Failed to initialize Web Worker, falling back to main thread execution.', e);
-        this.isWorkerSupported = false;
+      // Reserve a core for the UI and cap simultaneous image allocations at two.
+      const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 2;
+      const poolSize = Math.max(1, Math.min(2, (cores || 2) - 1));
+      for (let i = 0; i < poolSize; i++) {
+        try {
+          this.workers.push(this.createWorkerItem());
+        } catch (e) {
+          console.warn('Failed to initialize tracing worker.', e);
+          break;
+        }
       }
+      this.isWorkerSupported = this.workers.length > 0;
     } else {
       this.isWorkerSupported = false;
     }
@@ -194,51 +202,47 @@ export class TraceWorkerClient {
   }
 
   private dispatchNext(): void {
-    if (this.pendingQueue.length === 0) return;
-
-    if (this.workers.length === 0) {
-      for (const id of this.pendingQueue.splice(0)) {
-        const req = this.pendingRequests.get(id);
-        if (req) {
-          this.cleanupRequest(req);
-          this.scheduleFallback(req);
+    while (this.pendingQueue.length > 0) {
+      if (this.workers.length === 0) {
+        for (const id of this.pendingQueue.splice(0)) {
+          const req = this.pendingRequests.get(id);
+          if (req) {
+            this.cleanupRequest(req);
+            this.scheduleFallback(req);
+          }
         }
+        return;
       }
-      return;
-    }
 
-    const availableWorker = this.workers.find((w) => !w.busy);
-    if (!availableWorker) return;
+      const availableWorker = this.workers.find((w) => !w.busy);
+      if (!availableWorker) return;
 
-    const nextId = this.pendingQueue.shift()!;
-    const req = this.pendingRequests.get(nextId);
-    if (!req) {
-      this.dispatchNext();
-      return;
-    }
+      const nextId = this.pendingQueue.shift()!;
+      const req = this.pendingRequests.get(nextId);
+      if (!req) continue;
 
-    availableWorker.busy = true;
-    availableWorker.activeRequestId = req.id;
-    req.workerItem = availableWorker;
+      availableWorker.busy = true;
+      availableWorker.activeRequestId = req.id;
+      req.workerItem = availableWorker;
 
-    // Start 10s execution timer when task is dispatched
-    req.timer = setTimeout(() => {
-      this.cleanupRequest(req);
-      this.replaceWorker(availableWorker);
-      req.reject(
-        new Error('Tracing timed out. Please retry with a lower resolution or smaller image.')
-      );
-      this.dispatchNext();
-    }, 10_000);
+      // Start 10s execution timer when task is dispatched
+      req.timer = setTimeout(() => {
+        this.cleanupRequest(req);
+        this.replaceWorker(availableWorker);
+        req.reject(
+          new Error('Tracing timed out. Please retry with a lower resolution or smaller image.')
+        );
+        this.dispatchNext();
+      }, 10_000);
 
-    try {
-      availableWorker.worker.postMessage(req.task, [req.task.imageData.data.buffer]);
-    } catch {
-      // If postMessage throws, terminate worker and resolve via fallback
-      this.cleanupRequest(req);
-      this.replaceWorker(availableWorker);
-      this.scheduleFallback(req);
-      this.dispatchNext();
+      try {
+        availableWorker.worker.postMessage(req.task, [req.task.imageData.data.buffer]);
+      } catch {
+        // If postMessage throws, terminate worker and resolve via fallback
+        this.cleanupRequest(req);
+        this.replaceWorker(availableWorker);
+        this.scheduleFallback(req);
+      }
     }
   }
 
@@ -285,26 +289,20 @@ export class TraceWorkerClient {
       }
 
       // Proactively check header dimensions to abort decoding early if an image exceeds safe memory bounds
-      readImageHeaderDimensions(file).then((headerDims) => {
-        if (settled) return;
-        if (!headerDims) return;
-        if (headerDims.width > 16_384 || headerDims.height > 16_384 || headerDims.width * headerDims.height > 67_108_864) {
-          cleanup();
-          reject(new Error(`Image dimensions (${headerDims.width}x${headerDims.height}) exceed maximum allowable size (16,384px per edge / 64MP).`));
-        }
-      }).catch(() => {}).finally(() => {
+      assertRasterDecodeBudget(file).then(() => {
         if (!settled) img.src = url;
+      }).catch((error) => {
+        if (!settled) {
+          cleanup();
+          reject(error);
+        }
       });
 
       img.onload = () => {
         try {
           const origWidth = img.naturalWidth || img.width;
           const origHeight = img.naturalHeight || img.height;
-          if (origWidth > 16_384 || origHeight > 16_384 || origWidth * origHeight > 67_108_864) {
-            cleanup();
-            reject(new Error(`Image dimensions (${origWidth}x${origHeight}) exceed maximum allowable size (16,384px per edge / 64MP).`));
-            return;
-          }
+          assertImageDecodeDimensions(origWidth, origHeight);
 
           let width = origWidth;
           let height = origHeight;

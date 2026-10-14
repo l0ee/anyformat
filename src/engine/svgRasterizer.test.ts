@@ -74,6 +74,97 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('prepared raster export cleanup', () => {
+  it('releases the canvas after encoding completes', async () => {
+    const { canvas } = installRasterizerMocks({ width: '64', height: '48' });
+    const blob = await rasterizeSvgToBlob('<svg />', { format: 'png' });
+    expect(blob.type).toBe('image/png');
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:svg-rasterizer-test');
+  });
+
+  it.each(['draw', 'encode', 'empty', 'mime'])('rejects and releases resources after %s failure', async (stage) => {
+    const { canvas, toBlob } = installRasterizerMocks({ width: '64', height: '48' });
+    if (stage === 'draw') {
+      vi.spyOn(canvas.getContext('2d')!, 'drawImage').mockImplementation(() => { throw new Error('draw failed'); });
+    } else if (stage === 'encode') {
+      toBlob.mockImplementation(() => { throw new Error('encode failed'); });
+    } else {
+      toBlob.mockImplementation((callback: BlobCallback) => callback(stage === 'empty' ? null : new Blob(['jpeg'], { type: 'image/jpeg' })));
+    }
+    await expect(rasterizeSvgToBlob('<svg />', { format: 'png' })).rejects.toThrow();
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:svg-rasterizer-test');
+  });
+});
+
+describe('SVG data URL export cleanup', () => {
+  it.each([
+    [undefined, 'image/png', 0.92],
+    ['png', 'image/png', 0.92],
+    ['jpeg', 'image/jpeg', 0.8],
+    ['webp', 'image/webp', 0.8],
+  ] as const)('preserves %s output and releases the canvas after encoding', async (format, mimeType, quality) => {
+    const { canvas, toDataURL } = installRasterizerMocks({ width: '64', height: '48' });
+    const expectedDataUrl = `data:${mimeType};base64,AA==`;
+    toDataURL.mockImplementation(() => {
+      // Releasing the canvas before encoding would destroy the source pixels.
+      expect(canvas.width).toBe(64);
+      expect(canvas.height).toBe(48);
+      return expectedDataUrl;
+    });
+
+    await expect(rasterizeSvgToDataUrl('<svg />', { format, quality })).resolves.toBe(expectedDataUrl);
+    expect(toDataURL).toHaveBeenCalledExactlyOnceWith(mimeType, quality);
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:svg-rasterizer-test');
+  });
+
+  it('preserves an encoding exception and releases the canvas', async () => {
+    const { canvas, toDataURL } = installRasterizerMocks({ width: '64', height: '48' });
+    const error = new Error('Encoding failed');
+    toDataURL.mockImplementation(() => { throw error; });
+
+    await expect(rasterizeSvgToDataUrl('<svg />')).rejects.toBe(error);
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:svg-rasterizer-test');
+  });
+
+  it('rejects invalid SVG roots before allocating or encoding a canvas', async () => {
+    const { createCanvas, toDataURL } = installRasterizerMocks({ width: '64', height: '48' }, 'html');
+
+    await expect(rasterizeSvgToDataUrl('<html />')).rejects.toThrow(/root must be an <svg>/i);
+    expect(createCanvas).not.toHaveBeenCalled();
+    expect(toDataURL).not.toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('releases resources once when image loading fails before encoding', async () => {
+    const { canvas, toDataURL } = installRasterizerMocks({ width: '64', height: '48' });
+    vi.stubGlobal('Image', class FailingImage {
+      crossOrigin = '';
+      onload: (() => void) | null = null;
+      onerror: ((event: unknown) => void) | null = null;
+
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.('decode failed'));
+      }
+    });
+
+    await expect(rasterizeSvgToDataUrl('<svg />')).rejects.toThrow('Failed to load SVG image into canvas: decode failed');
+    expect(toDataURL).not.toHaveBeenCalled();
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:svg-rasterizer-test');
+  });
+});
+
 describe('svgToCanvas sizing', () => {
   it('uses dimensions from the root SVG element, not child geometry', async () => {
     const { canvas } = installRasterizerMocks({ width: '320', height: '160', viewBox: '0 0 320 160' });
@@ -203,11 +294,14 @@ describe('SVG raster blob encoding', () => {
   });
 
   it('rejects a PNG data URL fallback when JPEG was requested', async () => {
-    const { toDataURL } = installRasterizerMocks({ width: '20', height: '10' }, 'svg', undefined, 'image/png');
+    const { canvas, toDataURL } = installRasterizerMocks({ width: '20', height: '10' }, 'svg', undefined, 'image/png');
 
     await expect(rasterizeSvgToDataUrl('<svg width="20" height="10" />', { format: 'jpeg' })).rejects.toThrow(
       'Browser returned image/png instead of image/jpeg.',
     );
     expect(toDataURL).toHaveBeenCalledWith('image/jpeg', 0.92);
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:svg-rasterizer-test');
   });
 });
