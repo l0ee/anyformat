@@ -34,25 +34,20 @@ export default defineConfig(({ mode, command }) => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src'),
+        '@': path.resolve(import.meta.dirname, './src'),
       },
     },
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          manualChunks(id: string) {
-            if (id.includes('node_modules/pdfjs-dist')) {
-              return 'vendor-pdfjs';
-            }
-            if (id.includes('node_modules/pdf-lib')) {
-              return 'vendor-pdflib';
-            }
-            if (id.includes('node_modules/jszip')) {
-              return 'vendor-jszip';
-            }
-            if (id.includes('node_modules/lucide-react')) {
-              return 'vendor-icons';
-            }
+          codeSplitting: {
+            groups: [
+              // Keep PDF.js from absorbing Vite's eagerly imported preload helper.
+              { name: 'vendor-pdfjs', test: 'node_modules/pdfjs-dist', includeDependenciesRecursively: false },
+              { name: 'vendor-pdflib', test: 'node_modules/pdf-lib' },
+              { name: 'vendor-jszip', test: 'node_modules/jszip' },
+              { name: 'vendor-icons', test: 'node_modules/lucide-react' },
+            ],
           },
         },
       },
