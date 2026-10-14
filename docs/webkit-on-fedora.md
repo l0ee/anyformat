@@ -5,10 +5,10 @@ provides ICU 77 and JPEG ABI 6. Playwright's dependency-install command uses
 Ubuntu/Debian package names, so its `libicu74` / `libjpeg-turbo8` suggestion does
 not directly apply to this host.
 
-For this Linux x86-64 host, the missing libraries can be added to the user-owned
-WebKit browser bundle. Its launcher and dependency validator already search both
+On this Linux x86-64 host, add the missing libraries to the user-owned WebKit
+browser bundle. Its launcher and dependency validator search both
 `minibrowser-gtk/sys/lib` and `minibrowser-wpe/sys/lib`. This setup requires no sudo
-and leaves the system's libraries in place.
+and leaves the system libraries in place.
 
 ## Repeatable setup
 
@@ -57,31 +57,31 @@ install -m 0644 "$work/root/usr/share/doc/libjpeg-turbo8/copyright" "$webkit/JPE
 npx playwright test --project=webkit
 ```
 
-Extraction does not run Debian package-maintainer scripts. The setup copies real
-libraries with the required ABI; it does not rename the host's incompatible ICU
-or JPEG libraries. An existing library with different bytes stops the recipe for
-review rather than being overwritten.
+Extraction does not run Debian package-maintainer scripts. The setup copies
+libraries with the required ABI and leaves the host's incompatible ICU and JPEG
+libraries unchanged. If an existing file has different bytes, the recipe stops
+for review.
 
 ## PDF rendering regression
 
-Once WebKit could run, the existing production-CSP pixel tests exposed embedded
-JPEGs rendering white through PDF.js's native `ImageDecoder` path. The original
-JPEG, JPEG2000 image, and text rendered correctly. Disabling `ImageDecoder`
-restored the JPEG; disabling `OffscreenCanvas` alone did not.
+The production-CSP pixel tests found that embedded JPEGs rendered white through
+PDF.js's native `ImageDecoder` path in WebKit. The original JPEG, JPEG2000 image,
+and text rendered correctly. Disabling `ImageDecoder` restored the JPEG;
+disabling `OffscreenCanvas` alone did not.
 
 `convertPdfToImage` now sets PDF.js's documented `isImageDecoderSupported: false`
 option, retaining the portable decoder for conversions and source previews.
-This may trade native decoding speed for consistent results on image-heavy PDFs.
+Using the portable decoder may be slower on image-heavy PDFs.
 The unchanged JPEG/JPEG2000 pixel assertions pass under both production CSP
 modes in Chromium, Firefox, and WebKit. Release verification runs the complete
 three-engine suite with retries disabled.
 
 ## Scope and updates
 
-This is a verified local compatibility setup for the current browser bundle,
-not official Playwright support for Nobara. A fresh WebKit revision or deletion
-of the browser cache requires rechecking the ABI requirements and reapplying the
-setup. A changed package checksum requires reviewing updated official metadata.
+This setup was tested with the browser bundle described above. Playwright does
+not officially support Nobara. After a WebKit revision changes or its browser
+cache is deleted, recheck the ABI requirements and reapply the setup. Review the
+official package metadata if a checksum changes.
 The [version-matched Playwright container](https://playwright.dev/docs/docker) is
 the upstream-supported route for unsupported Linux distributions when a
 container engine is available. Ubuntu CI uses the normal `--with-deps` install.
