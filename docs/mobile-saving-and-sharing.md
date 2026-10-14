@@ -1,7 +1,7 @@
 # Mobile saving and native sharing
 
-All conversion and export preparation stays in the browser. The Share action
-passes the completed file to the device's native share menu only when tapped.
+Conversion and export preparation run in the browser. Tap Share to pass the
+completed file to the device's native share menu.
 
 ## Available actions
 
@@ -13,27 +13,28 @@ passes the completed file to the device's native share menu only when tapped.
 - **PDF:** Download PDF remains available. On iOS, check Files or choose Save to
   Files from the native menu when offered.
 - **WebP/SVG:** Download and native sharing when the browser accepts that exact
-  file. There is no Photos-saving promise for these formats.
+  file. The app does not offer a Photos-saving action for these formats.
 - **Vector Studio:** Choose Image format and Image scale in Save or share an
   image, tap Prepare image, then use the ready file's actions. Source/settings
   changes invalidate prepared exports. Existing direct downloads still work.
 
 Native sharing requires browser support, a secure context (HTTPS in production),
-and a fresh user gesture. Sharing is capability-checked for the actual file,
-independently of operating-system detection. A Telegram URL-sharing link cannot
-attach these local files; choose Telegram in the native menu or download and
-attach the file manually. Available apps and actions are controlled by the OS.
+and a fresh user gesture. The app checks sharing support for the actual file,
+independently of operating-system detection. To send it through Telegram, choose
+Telegram in the native menu or download and attach it manually. A Telegram
+URL-sharing link cannot attach local files. The OS controls the available apps
+and actions.
 
 Cancelling does not cause a download. A resolved share request does not confirm
-that a photo was saved or a message sent. Photos access is not granted to the
-website by detecting iOS. The image-saving preview preserves native long-press
+that a photo was saved or a message sent. Detecting iOS does not give the website
+access to Photos. The image-saving preview preserves native long-press
 and context-menu behavior.
 
 ## Physical-device acceptance checklist
 
-**Status: not yet verified on physical devices.** Automated tests validate UI,
-file payloads, activation, cancellation, and URL cleanup using mocked sharing;
-they do not validate the native share targets or photo-library outcomes.
+Physical-device testing is pending. Automated tests check the UI, file payloads,
+activation, cancellation, and URL cleanup with mocked sharing APIs. They do not
+test native share targets or photo-library outcomes.
 
 Record device model, OS version, browser version, receiving-app version, and
 test date for each run. Use the HTTPS deployment, including both normal browser

@@ -1,40 +1,46 @@
-# Security Policy & Architecture
+# Security policy and architecture
 
-Please report security concerns privately through the repository owner's GitHub profile rather than opening a public issue containing exploit details or sensitive files:
+Report security concerns privately through the repository owner's GitHub profile. Keep exploit details and sensitive files out of public issues:
 
 https://github.com/l0ee
 
-## Browser-Side Privacy Model
+## Browser-side privacy
 
 Image conversion, PDF page rendering, and SVG tracing run locally using browser APIs and Web Workers. The application has no file-upload backend.
 
-- **Network boundaries:** The production HTML includes a Content Security Policy (CSP) that restricts connections to the site's origin and local Blob URLs. This is defense in depth, not proof of zero network activity: same-origin requests are permitted, and the site loads application assets and Google Fonts.
-- **Deployment:** The included Node server also sends CSP and other security headers. Static hosts use the HTML policy unless they supply additional headers. Multiple policies are enforced together. Vite development omits the HTML policy to support React refresh and its development connection; this exception is not included in production builds.
-- **Policy source:** `config/security-policy.js` generates the build's HTML policy and the Node server's header. Blob-backed frames are allowed for PDF result previews. `wasm-unsafe-eval` permits PDF.js codec compilation; JavaScript `unsafe-eval` and inline scripts remain disallowed. Codec assets and their license files are bundled from the installed PDF.js dependency and served locally.
+The production HTML includes a Content Security Policy (CSP) that restricts connections to the site's origin and local Blob URLs. Same-origin requests are still permitted, and the site loads application assets and Google Fonts. CSP adds a layer of protection; it does not establish that the site makes no network requests.
 
-## SVG Handling & XSS Defense
+The optional Node server sends CSP and other security headers. Static hosts use the HTML policy unless they add headers of their own. Browsers enforce multiple policies together. Vite development omits the HTML policy for React refresh and its development connection; production builds include it.
 
-SVG files can present Cross-Site Scripting (XSS) attack vectors due to embedded scripts or event handlers (`<script>`, `onload`, etc.). AnyFormat mitigates SVG injection risks through:
+`config/security-policy.js` defines both the HTML policy and the Node server's header. It allows Blob-backed PDF preview frames and `wasm-unsafe-eval` for PDF.js codecs. JavaScript `unsafe-eval` and inline scripts remain blocked. The build bundles codec assets and their licenses from the installed PDF.js package and serves them locally.
 
-1. **Image-context rendering:** SVG previews use `<img>` with Blob or data URLs. Rasterization loads SVG into an `Image` and draws it to canvas. These paths do not insert SVG markup into the application's live DOM.
-2. **Text inspection:** Code Inspector displays SVG source as a React text child, rather than injecting it as HTML. Clipboard copying transfers the source as text.
-3. **Optimization is not sanitization:** The SVG optimizer removes selected metadata and simplifies markup. It does not strip arbitrary scripts or event handlers and must not be treated as a security sanitizer. Image-context rendering does not make the underlying SVG safe to embed as active markup elsewhere.
+## SVG rendering and XSS
+
+SVG files can contain scripts and event handlers such as `<script>` and `onload`. AnyFormat handles untrusted SVG through these boundaries:
+
+1. SVG previews use `<img>` with Blob or data URLs. Rasterization loads SVG into an `Image` and draws it to canvas. These paths do not insert SVG markup into the application's live DOM.
+2. Code Inspector displays source as a React text child. Clipboard copying transfers that source as text.
+3. The optimizer removes selected metadata and simplifies markup. It does not remove arbitrary scripts or event handlers. Exported SVGs can still contain active content when embedded elsewhere; image-context rendering does not sanitize the file.
 
 ## Image memory boundaries
 
-Raster intake and conversion share a source-decode budget of 16,384 pixels per edge and 64 megapixels. Recognized image headers are checked before allocating source preview URLs or starting browser image decoding. Conversion paths also check decoded dimensions. Output canvases use the smaller budget in `src/engine/canvasLimits.ts`.
+Raster intake and conversion share a source-decode budget of 16,384 pixels per edge and 64 megapixels. The app checks recognized headers before allocating preview URLs or starting image decoding, then checks decoded dimensions during conversion. Output canvases use the smaller budget in `src/engine/canvasLimits.ts`.
 
 The preflight reads at most 64 KiB; unknown or unsupported header layouts fall back to the browser decoder. These checks reduce memory risks but do not guarantee a fixed total-memory ceiling, prevent every decompression attack, or bound the sum of all queued files.
 
-## External Dependencies & Self-Hosting
+## External requests and self-hosting
 
-The interface loads web fonts from Google Fonts. Hosting providers and font services may receive ordinary request metadata. A self-contained deployment requires self-hosting the fonts and updating both the HTML policy and any server CSP headers. Worker resources may have their own policy context; the HTML policy alone is not a guarantee about every worker's network access.
+The interface loads fonts from Google Fonts. Hosting providers and font services may receive ordinary request metadata. To make a deployment self-contained, host the fonts yourself and update both the HTML policy and any server CSP headers. Workers may have a separate policy context, so the HTML policy alone does not establish every worker's network restrictions.
+
+The optional Node server checks canonical filesystem paths before serving assets or the SPA fallback. Symlinks may target files inside the deployment root; links outside it are rejected. Keep the build tree protected from untrusted writes: resolving a path and opening it are separate operations.
+
+In-memory compression accepts inputs up to 8 MiB and uses at most four slots per server. A slot stays occupied until native compression completes and the response finishes or closes. Oversized files and requests at capacity stream uncompressed. HEAD requests skip file reads and compression. These limits bound compression-owned buffering, not total connections or kernel socket memory.
 
 ## Build toolchain dependencies
 
 Tailwind CSS 4 compiles the interface through `@tailwindcss/vite`. Source paths
-are declared in `src/index.css`; build configuration remains repository-controlled
-and does not consume browser-selected filenames or request-provided globs.
+are declared in `src/index.css`. Build configuration comes from the repository;
+it does not consume browser-selected filenames or request-provided globs.
 `start-server.js` serves the generated static files without compiling CSS.
 
 The earlier Tailwind 3 dependency tree produced five high-severity package reports
@@ -42,12 +48,12 @@ for [GHSA-vfj7-8cjw-p6xm / CVE-2026-93687](https://github.com/advisories/GHSA-vf
 The Tailwind 4 migration removed `braces`, `micromatch`, `fast-glob`, and `chokidar`
 from the installed project tree. It also removed `postcss-nested` and the scoped
 selector-parser overrides needed by the previous toolchain. The migration resolves
-those dependency paths without claiming that the upstream `braces` advisory has
-been patched.
+those dependency paths. The upstream `braces` advisory was not patched by this
+project's migration.
 
 Both full and production-only npm audits reported zero known advisories after
-migration. Audit results are a point-in-time dependency check, not proof that all
-runtime behavior is safe. Recheck them when updating dependencies:
+migration. Audits check known dependency advisories at the time they run; they
+do not prove that all runtime behavior is safe. Recheck them when updating dependencies:
 
 ```bash
 npm audit --json
