@@ -3,11 +3,11 @@
 ## Commands
 - **Development**: `npm run dev`
 - **Validation suite**: `npm run typecheck && npm run lint && npm test`
-- **Playwright E2E**: `npx playwright test --project=chromium` *(Note: WebKit requires host OS libraries `libicu74`/`libjpeg-turbo8`)*
+- **Playwright E2E**: `npx playwright test --project=chromium`; WebKit: `npx playwright test --project=webkit` *(Nobara/Fedora setup: `docs/webkit-on-fedora.md`)*
 - **Production server build & start**: `npm run build && npm start`
 
 ## Architecture Summary
-- **Stack**: React 18 + Vite 6 + Tailwind CSS + TypeScript
+- **Stack**: React 18 + Vite 6 + Tailwind CSS 4 (Vite plugin) + TypeScript
 - **Processing**: 100% browser-side processing (no upload backend)
 - **Format Support**: Single source of truth at `src/engine/universal/types.ts`
 - **Worker Tracing**: `src/workers/traceWorker.ts` and `traceWorkerClient.ts`

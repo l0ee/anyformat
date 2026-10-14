@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.2.0 — Image exports and conversion reliability
+
+### New
+
+- Resize raster outputs, preserve aspect ratio, control JPEG/WebP quality, and choose a JPEG background. PNG, JPEG, and WebP can also export to the same format with these settings.
+- Save-image guidance and capability-checked native file sharing. Vector Studio can prepare a PNG or WebP for a separate save/share tap.
+- Bounded parallel SVG batch tracing, debounced SVG cleanup, and off-screen queue rendering that retains keyboard access.
+
+### Fixed
+
+- Flatten and normalize ZIP entry names, including case-insensitive collisions, without dropping completed files.
+- Check raster headers before preview allocation and decoding; release raster-export URLs and canvases on failures.
+- Validate default output formats before queueing files, and invalidate stale conversion results when settings change.
+- Preserve requested resize dimensions despite floating-point rounding, and recognize CORE-header BMP dimensions during image preflight.
+- Bundle PDF.js codecs locally, apply the same production CSP to static and Node deployments, and preserve embedded JPEG rendering in WebKit.
+
+### Maintenance
+
+- Migrate to Tailwind CSS 4.3.3 and its Vite plugin, retaining the existing palette, layout, themes, keyboard focus, and reduced-motion behavior. Remove the vulnerable Tailwind 3 dependency chain and update `source-map-js` to 1.2.2.
+- Retain the 2.1 stop/resume controls, named stages, file-count progress, partial ZIP exports, individual SVG downloads, result-size comparisons, and creator attribution.
+- Document rootless WebKit verification on Nobara/Fedora. Native sharing targets and Photos saving still require physical-device verification; see [mobile saving and sharing](docs/mobile-saving-and-sharing.md).
+
 ## 2.1.0 — Smoother workflows
 
 ### New

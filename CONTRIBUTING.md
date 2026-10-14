@@ -22,6 +22,8 @@ npx playwright install chromium firefox webkit
 
 On Debian or Ubuntu, use `npx playwright install --with-deps chromium firefox webkit` when the host is missing browser system libraries.
 
+For a verified user-owned WebKit library setup on Nobara/Fedora, see [docs/webkit-on-fedora.md](docs/webkit-on-fedora.md). Mobile sharing tests use mocked native APIs; physical-device checks are recorded in [docs/mobile-saving-and-sharing.md](docs/mobile-saving-and-sharing.md).
+
 Conversion-format claims must match `src/engine/universal/types.ts`. Do not advertise a decoder, encoder, upload limit, privacy guarantee, or third-party engine unless it is implemented and verified.
 
 ## Commit scope

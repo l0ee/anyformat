@@ -92,7 +92,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
           toggleFullscreen();
         }}
         onPointerDown={(e) => e.stopPropagation()}
-        className="absolute bottom-16 right-4 sm:bottom-20 bg-black/50 hover:bg-black/70 text-white rounded-lg p-2.5 backdrop-blur z-40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
+        className="absolute bottom-16 right-4 sm:bottom-20 bg-black/50 hover:bg-black/70 text-white rounded-lg p-2.5 backdrop-blur z-40 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-500"
         aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       >
         {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
@@ -145,7 +145,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
         }}
         onPointerDown={(event) => event.stopPropagation()}
         aria-valuetext={`${roundedPosition}% original, ${100 - roundedPosition}% vector`}
-        className="absolute z-30 bottom-4 left-4 right-4 w-[calc(100%-2rem)] h-8 accent-pink-500 cursor-ew-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950 rounded-full"
+        className="absolute z-30 bottom-4 left-4 right-4 w-[calc(100%-2rem)] h-8 accent-pink-500 cursor-ew-resize focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950 rounded-full"
       />
 
       {/* Slider Line */}

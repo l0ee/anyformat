@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-type TraceProbe = Window & {
+type TraceProbe = typeof window & {
   __traceTasks: Array<{ id: string; type: string }>;
   __releaseFirstTrace?: () => void;
   __fireNextDebounce?: () => void;
@@ -173,12 +173,12 @@ test('retrying failed files leaves idle files queued', async ({ page }) => {
     buffer: validSvg,
   });
   await expect(page.getByText('Retry processes only failed files; 1 idle file remains queued.')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Format conversion queue (2)' }).getByRole('status')).toContainText('1 ready · 0 processing · 0 completed · 1 failed');
+  await expect(page.getByRole('region', { name: 'Format conversion queue (2)' }).getByRole('status', { name: 'Format conversion status' })).toContainText('1 ready · 0 processing · 0 completed · 1 failed');
 
   const retryButton = page.getByRole('button', { name: 'Retry failed conversions in the format conversion queue' });
   await retryButton.click();
   await expect(retryButton).toBeEnabled({ timeout: 60_000 });
-  await expect(page.getByRole('region', { name: 'Format conversion queue (2)' }).getByRole('status')).toContainText('1 ready · 0 processing · 0 completed · 1 failed');
+  await expect(page.getByRole('region', { name: 'Format conversion queue (2)' }).getByRole('status', { name: 'Format conversion status' })).toContainText('1 ready · 0 processing · 0 completed · 1 failed');
   await expect(page.getByRole('button', { name: 'Download idle.png' })).toHaveCount(0);
   await expect(page.getByRole('progressbar', { name: 'Converting idle.svg' })).toHaveCount(0);
 });

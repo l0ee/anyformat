@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
+import { SERVER_CSP } from './config/security-policy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,21 +39,7 @@ const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.cjs', '.css',
 
 function securityHeaders() {
   return {
-    'Content-Security-Policy': [
-      "default-src 'self'",
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob:",
-      "media-src 'self' blob:",
-      "worker-src 'self' blob:",
-      "child-src 'self' blob:",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-    ].join('; '),
+    'Content-Security-Policy': SERVER_CSP,
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Content-Type-Options': 'nosniff',
@@ -350,8 +337,14 @@ export function createProductionServer({ distDir = path.join(__dirname, 'dist') 
         return;
       }
 
-      const isNotFound = !error || error.code === 'ENOENT' || error.code === 'EISDIR' || !stats.isFile();
-      const isClientRoute = isNotFound && !path.extname(resolved.pathname);
+      if (error && error.code !== 'ENOENT' && error.code !== 'EISDIR') {
+        const statusCode = error.code === 'ENOTDIR' ? 404 : error.code === 'ENAMETOOLONG' ? 400 : 500;
+        res.writeHead(statusCode, securityHeaders());
+        res.end(statusCode === 404 ? 'Not Found' : statusCode === 400 ? 'Bad Request' : 'Server Error');
+        return;
+      }
+
+      const isClientRoute = !path.extname(resolved.pathname);
       if (isClientRoute) {
         const indexPath = path.join(distDir, 'index.html');
         fs.stat(indexPath, (indexStatError, indexStats) => {
@@ -365,8 +358,8 @@ export function createProductionServer({ distDir = path.join(__dirname, 'dist') 
         return;
       }
 
-      res.writeHead(isNotFound ? 404 : 500, securityHeaders());
-      res.end(isNotFound ? 'Not Found' : 'Server Error');
+      res.writeHead(404, securityHeaders());
+      res.end('Not Found');
     });
   });
 }

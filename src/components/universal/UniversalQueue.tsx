@@ -1,5 +1,8 @@
 import React, { useId, useState, useEffect, useRef, useMemo } from 'react';
-import { getCommonExportTargets, SUPPORTED_FORMATS, UniversalTaskItem } from '../../engine/universal/types';
+import { getCommonExportTargets, ImageExportOptions, supportsImageExportSettings, SUPPORTED_FORMATS, UniversalTaskItem } from '../../engine/universal/types';
+import { ImageExportSettings } from './ImageExportSettings';
+import { FileResultActions } from '../common/FileResultActions';
+import { getImageExportErrors } from '../../engine/universal/imageTransform';
 import { DEFAULT_QUEUE_FILTERS, hasQueueFilters, filterUniversalTasks, UniversalFilterOptions } from '../../engine/universal/universalFilter';
 import { calculateUniversalBatchMetrics, copyResultToClipboard } from '../../utils/universalResultUtils';
 import { convertPdfToImage } from '../../engine/pdfConverter';
@@ -13,38 +16,37 @@ const PdfSourcePagePreview: React.FC<{
   pageNumber: number;
 }> = ({ file, fileName, pageNumber }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
-  const currentPageRef = useRef(pageNumber);
+  const requestIdRef = useRef(0);
   const activeUrlRef = useRef<string | null>(null);
-  const unmountedRef = useRef(false);
+  const previewStatusId = useId();
+  const previewErrorId = useId();
 
   useEffect(() => {
-    currentPageRef.current = pageNumber;
-    if (activeUrlRef.current) {
-      URL.revokeObjectURL(activeUrlRef.current);
-      activeUrlRef.current = null;
-      setPreviewUrl(null);
-    }
-  }, [pageNumber]);
-
-  useEffect(() => {
-    unmountedRef.current = false;
+    setPreviewUrl(null);
+    setPreviewError(null);
+    setIsRendering(false);
     return () => {
-      unmountedRef.current = true;
+      requestIdRef.current++;
       if (activeUrlRef.current) {
         URL.revokeObjectURL(activeUrlRef.current);
         activeUrlRef.current = null;
       }
     };
-  }, []);
+  }, [file, pageNumber]);
 
   const handlePreview = async () => {
+    if (isRendering) return;
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     const requestedPage = pageNumber;
+    setPreviewError(null);
     setIsRendering(true);
     try {
       const blob = await convertPdfToImage(file, 'png', requestedPage);
       const url = URL.createObjectURL(blob);
-      if (unmountedRef.current || currentPageRef.current !== requestedPage) {
+      if (requestId !== requestIdRef.current) {
         URL.revokeObjectURL(url);
       } else {
         if (activeUrlRef.current) {
@@ -54,9 +56,11 @@ const PdfSourcePagePreview: React.FC<{
         setPreviewUrl(url);
       }
     } catch {
-      // ignore
+      if (requestId === requestIdRef.current) {
+        setPreviewError(`Could not preview PDF page ${requestedPage}. Try again, or convert the file to download that page.`);
+      }
     } finally {
-      if (!unmountedRef.current) {
+      if (requestId === requestIdRef.current) {
         setIsRendering(false);
       }
     }
@@ -68,17 +72,18 @@ const PdfSourcePagePreview: React.FC<{
         <button
           type="button"
           onClick={handlePreview}
-          className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-stone-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          disabled={isRendering}
+          aria-describedby={previewError ? previewErrorId : previewStatusId}
+          className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-stone-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         >
-          <Eye className="h-3.5 w-3.5" />
-          Preview source page
+          <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+          {previewError ? 'Retry source preview' : 'Preview source page'}
         </button>
-        {isRendering && (
-          <span className="text-xs text-stone-500 dark:text-slate-400">
-            {`Rendering PDF page ${pageNumber} preview\u2026`}
-          </span>
-        )}
+        <span id={previewStatusId} role="status" aria-label="PDF source preview status" aria-live="polite" aria-atomic="true" className="text-xs text-stone-500 dark:text-slate-400">
+          {isRendering ? `Rendering PDF page ${pageNumber} preview\u2026` : ''}
+        </span>
       </div>
+      {previewError && <p id={previewErrorId} role="alert" className="text-xs text-rose-700 dark:text-rose-300">{previewError}</p>}
       {previewUrl && (
         <div className="mt-1">
           <img
@@ -93,6 +98,7 @@ const PdfSourcePagePreview: React.FC<{
 };
 
 interface UniversalQueueProps {
+  onImageOptionsChange?: (id: string, options: ImageExportOptions, applyAll?: boolean) => void;
   items: UniversalTaskItem[];
   onTargetFormatChange: (id: string, targetExt: string) => void;
   onApplyAllTargetFormat: (targetExt: string) => void;
@@ -111,6 +117,7 @@ interface UniversalQueueProps {
 }
 
 export const UniversalQueue: React.FC<UniversalQueueProps> = ({
+  onImageOptionsChange,
   items,
   onTargetFormatChange,
   onApplyAllTargetFormat,
@@ -135,6 +142,12 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
   const statusId = useId();
   const globalTargetId = useId();
   const zipHelpId = useId();
+  const validationHelpId = useId();
+  const invalidSettingsCount = items.filter((item) =>
+    (item.status === 'idle' || item.status === 'error')
+    && supportsImageExportSettings(item.sourceExt, item.targetExt)
+    && Object.keys(getImageExportErrors(item.imageOptions)).length > 0
+  ).length;
 
   const isSingle = items.length === 1;
   const filteredItems = useMemo(
@@ -190,7 +203,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
               `Format conversion queue (${items.length})`
             )}
           </h2>
-          <p id={statusId} role="status" aria-live="polite" aria-atomic="true" className="mt-1 text-xs text-stone-600 dark:text-slate-400">
+          <p id={statusId} role="status" aria-label="Format conversion status" aria-live="polite" aria-atomic="true" className="mt-1 text-xs text-stone-600 dark:text-slate-400">
             {isSingle ? (
               items[0].status === 'completed' ? (
                 <>
@@ -238,7 +251,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
               <button
                 type="button"
                 onClick={onRetryFailed}
-                disabled={isProcessing}
+                disabled={isProcessing || invalidSettingsCount > 0}
                 aria-label="Retry failed conversions in the format conversion queue"
                 className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-rose-300/80 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
               >
@@ -294,7 +307,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
             const previewId = `universal-preview-${item.id}`;
             const expanded = expandedId === item.id;
             return (
-              <li key={item.id} className="hover-surface rounded-2xl border border-stone-200/90 bg-[#fdfbf9]/90 p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+              <li key={item.id} data-expanded={expanded} className="queue-row hover-surface rounded-2xl border border-stone-200/90 bg-[#fdfbf9]/90 p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     {item.previewUrl ? (
@@ -362,7 +375,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                               const clamped = Math.max(1, Math.min(max, val || 1));
                               onPageNumberChange?.(item.id, clamped);
                             }}
-                            className="min-h-11 w-16 rounded-xl border border-stone-300/80 bg-white/90 px-2.5 py-2 text-center text-sm font-bold text-stone-800 transition focus:border-rose-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                            className="min-h-11 w-16 rounded-xl border border-stone-300/80 bg-white/90 px-2.5 py-2 text-center text-sm font-bold text-stone-800 transition focus:border-rose-500 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                           />
                           <span className="text-xs font-medium text-stone-500 dark:text-slate-400">
                             {item.pageCount === undefined ? 'Reading PDF pages…' : `of ${item.pageCount}`}
@@ -392,13 +405,22 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                         value={item.targetExt}
                         onChange={(event) => onTargetFormatChange(item.id, event.target.value)}
                         disabled={isProcessing || item.status === 'completed'}
-                        className="min-h-11 rounded-xl border border-stone-300/80 bg-white/90 px-3 py-2 text-sm font-bold text-rose-700 transition focus:border-rose-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-rose-300"
+                        className="min-h-11 rounded-xl border border-stone-300/80 bg-white/90 px-3 py-2 text-sm font-bold text-rose-700 transition focus:border-rose-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-900 dark:text-rose-300"
                       >
                         {spec.canExportTo.map((target) => (
                           <option key={target} value={target}>.{target.toUpperCase()}</option>
                         ))}
                       </select>
                     </div>
+
+                    {item.status === 'completed' && item.imageOutput && (
+                      <p className="basis-full text-xs">Output: {item.imageOutput.width} × {item.imageOutput.height} px{item.imageOutput.limited ? ' · Reduced to fit browser canvas limits' : ''}</p>
+                    )}
+                    {onImageOptionsChange && supportsImageExportSettings(item.sourceExt, item.targetExt) && (
+                      <ImageExportSettings value={item.imageOptions ?? {}} targetExt={item.targetExt} disabled={isProcessing}
+                        onChange={(options) => onImageOptionsChange(item.id, options)}
+                        onApplyAll={() => onImageOptionsChange(item.id, item.imageOptions ?? {}, true)} />
+                    )}
 
                     {item.sourceExt === 'pdf' && item.targetExt === 'svg' && (
                       <p id={`${targetId}-note`} className="basis-full text-xs text-stone-600 dark:text-slate-300">
@@ -432,7 +454,7 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                     )}
 
                     {!isSingle && item.status === 'completed' && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
                         {(item.targetExt === 'svg' || item.resultBlob?.type === 'image/svg+xml') && (
                           <button
                             type="button"
@@ -453,15 +475,9 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                             )}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => onDownloadItem(item.id)}
-                          aria-label={`Download ${item.resultFilename || `${item.name.replace(/\.[^/.]+$/, '')}.${item.targetExt}`}`}
-                          className="min-h-11 inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Download
-                        </button>
+                        <FileResultActions blob={item.resultBlob}
+                          filename={item.resultFilename || `${item.name.replace(/\.[^/.]+$/, '')}.${item.targetExt}`}
+                          onDownload={() => onDownloadItem(item.id)} />
                       </div>
                     )}
 
@@ -551,6 +567,9 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
         </ul>
       )}
 
+      {invalidSettingsCount > 0 && <p id={validationHelpId} role="alert" className="my-3 text-sm text-rose-700 dark:text-rose-300">
+        Fix image settings for {invalidSettingsCount} file{invalidSettingsCount === 1 ? '' : 's'} before converting. Open Image settings to correct or reset them.
+      </p>}
       <div className="flex flex-col gap-4 border-t border-stone-200/80 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
         <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-slate-400">
           <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -589,21 +608,16 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                     )}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => onDownloadItem(items[0].id)}
-                  aria-label={`Download ${items[0].resultFilename || `${items[0].name.replace(/\.[^/.]+$/, '')}.${items[0].targetExt}`}`}
-                  className="min-h-12 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition-transform hover:scale-[1.02]"
-                >
-                  <Download className="h-4 w-4" />
-                  Download {items[0].targetExt.toUpperCase()}
-                </button>
+                <FileResultActions blob={items[0].resultBlob}
+                  filename={items[0].resultFilename || `${items[0].name.replace(/\.[^/.]+$/, '')}.${items[0].targetExt}`}
+                  onDownload={() => onDownloadItem(items[0].id)} />
               </>
             ) : (
               <button
                 type="button"
-                onClick={onStartConversion}
-                disabled={isProcessing}
+                onClick={items[0].status === 'error' && onRetryFailed ? onRetryFailed : onStartConversion}
+                disabled={isProcessing || invalidSettingsCount > 0}
+                aria-describedby={invalidSettingsCount > 0 ? validationHelpId : undefined}
                 aria-label={isProcessing ? 'Converting files' : 'Convert all files'}
                 className="min-h-12 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-pink-500/25 transition-transform hover:scale-[1.02] disabled:opacity-50"
               >
@@ -646,7 +660,8 @@ export const UniversalQueue: React.FC<UniversalQueueProps> = ({
                 <button
                   type="button"
                   onClick={() => (!hasIdle && errorCount && onRetryFailed ? onRetryFailed() : onStartConversion())}
-                  disabled={isProcessing || !items.length}
+                  disabled={isProcessing || !items.length || invalidSettingsCount > 0}
+                  aria-describedby={invalidSettingsCount > 0 ? validationHelpId : undefined}
                   aria-label={isProcessing ? 'Converting files' : (!hasIdle && errorCount) ? 'Retry failed files' : 'Convert all files'}
                   className="min-h-12 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-pink-500/25 transition-transform hover:scale-[1.02] disabled:opacity-50"
                 >

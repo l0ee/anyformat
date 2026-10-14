@@ -41,28 +41,28 @@ export const SUPPORTED_FORMATS: Record<string, FormatSpec> = {
     mime: 'image/png',
     label: 'PNG Image',
     category: 'image',
-    canExportTo: ['jpg', 'webp', 'svg', 'pdf'],
+    canExportTo: ['jpg', 'webp', 'svg', 'pdf', 'png'],
   },
   jpg: {
     ext: 'jpg',
     mime: 'image/jpeg',
     label: 'JPEG Image',
     category: 'image',
-    canExportTo: ['png', 'webp', 'svg', 'pdf'],
+    canExportTo: ['png', 'webp', 'svg', 'pdf', 'jpg'],
   },
   jpeg: {
     ext: 'jpeg',
     mime: 'image/jpeg',
     label: 'JPEG Image',
     category: 'image',
-    canExportTo: ['png', 'webp', 'svg', 'pdf'],
+    canExportTo: ['png', 'webp', 'svg', 'pdf', 'jpg'],
   },
   webp: {
     ext: 'webp',
     mime: 'image/webp',
     label: 'WebP Image',
     category: 'image',
-    canExportTo: ['png', 'jpg', 'svg', 'pdf'],
+    canExportTo: ['png', 'jpg', 'svg', 'pdf', 'webp'],
   },
   bmp: {
     ext: 'bmp',
@@ -130,6 +130,16 @@ export function isSupportedConversion(sourceExtension: string, targetExtension: 
   return Boolean(SUPPORTED_FORMATS[sKey]?.canExportTo.includes(tKey));
 }
 
+/** Returns the first declared target only when both ends are registered. */
+export function getDefaultExportTarget(sourceExtension: string): string | undefined {
+  if (!isSupportedSourceExtension(sourceExtension)) return undefined;
+  const sourceKey = sourceExtension.toLowerCase();
+  const target = SUPPORTED_FORMATS[sourceKey]?.canExportTo?.[0];
+  if (typeof target !== 'string' || !isSupportedSourceExtension(target)
+    || !isSupportedConversion(sourceKey, target)) return undefined;
+  return target.toLowerCase();
+}
+
 export function getCommonExportTargets(sourceExtensions: string[]): string[] {
   if (sourceExtensions.length === 0) return [];
 
@@ -148,7 +158,37 @@ export function getCommonExportTargets(sourceExtensions: string[]): string[] {
   );
 }
 
+export interface ImageExportOptions {
+  width?: number;
+  height?: number;
+  keepAspectRatio?: boolean;
+  allowUpscaling?: boolean;
+  quality?: number;
+  background?: string;
+}
+
+export function supportsImageExportSettings(sourceExt: string, targetExt: string): boolean {
+  return SUPPORTED_FORMATS[sourceExt]?.category === 'image'
+    && ['png', 'jpg', 'jpeg', 'webp'].includes(targetExt)
+    && isSupportedConversion(sourceExt, targetExt);
+}
+
+export interface ConversionOptions {
+  pageNumber?: number;
+  image?: ImageExportOptions;
+  signal?: AbortSignal;
+  onStage?: (stage: ConversionStage) => void;
+}
+
+export interface ImageOutputMetadata {
+  width: number;
+  height: number;
+  limited: boolean;
+}
+
 export interface UniversalTaskItem {
+  imageOutput?: ImageOutputMetadata;
+  imageOptions?: ImageExportOptions;
   id: string;
   file: File;
   name: string;

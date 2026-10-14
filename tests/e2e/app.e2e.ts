@@ -103,6 +103,7 @@ test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async 
     fixtures.map((fixture) => [fixture.name.split('.').pop()!, fixture])
   );
   const paths = [
+    ['png', 'png'], ['jpg', 'jpg'], ['webp', 'webp'],
     ['png', 'jpg'], ['png', 'webp'], ['png', 'svg'], ['png', 'pdf'],
     ['jpg', 'png'], ['jpg', 'webp'], ['jpg', 'svg'], ['jpg', 'pdf'],
     ['webp', 'png'], ['webp', 'jpg'], ['webp', 'svg'], ['webp', 'pdf'],
@@ -118,14 +119,14 @@ test('converts every advertised PNG, JPEG, WebP, BMP, SVG, and PDF path', async 
   await page.locator('input[type="file"]').setInputFiles(matrixFiles);
 
   await expect(page.getByRole('heading', { name: `Format conversion queue (${paths.length})` })).toBeVisible();
-  await expect(page.getByLabel('Convert all to')).toBeDisabled();
+  await expect(page.getByLabel('Convert all to')).toBeEnabled();
 
   for (const [source, target] of paths) {
     await page.getByLabel(`Output for ${source}-to-${target}.${source}`).selectOption(target);
   }
   await page.getByRole('button', { name: 'Convert all files' }).click();
 
-  await expect(page.getByRole('region', { name: `Format conversion queue (${paths.length})` }).getByRole('status')).toContainText(`0 ready · 0 processing · ${paths.length} completed · 0 failed`, { timeout: 60_000 });
+  await expect(page.getByRole('region', { name: `Format conversion queue (${paths.length})` }).getByRole('status', { name: 'Format conversion status' })).toContainText(`0 ready · 0 processing · ${paths.length} completed · 0 failed`, { timeout: 60_000 });
   await expect(page.getByRole('button', { name: /^Download / })).toHaveCount(paths.length);
 });
 
