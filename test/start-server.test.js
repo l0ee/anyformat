@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import nodeFs from 'fs';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { createProductionServer } from '../start-server.js';
+import { createProductionServer, selectEncoding } from '../start-server.js';
 
 let directory;
 let server;
@@ -95,5 +96,59 @@ describe('production server', () => {
     expect(traversal.status).toBe(400);
     expect(post.status).toBe(405);
     expect(post.headers.get('allow')).toBe('GET, HEAD');
+  });
+
+  it('selects encoding respecting RFC 9110 quality values', () => {
+    expect(selectEncoding('br;q=0, gzip;q=1')).toBe('gzip');
+    expect(selectEncoding('br;q=0.5, gzip;q=1')).toBe('gzip');
+    expect(selectEncoding('br;q=1, gzip;q=0.8')).toBe('br');
+    expect(selectEncoding('gzip, deflate, br')).toBe('br');
+    expect(selectEncoding('br;q=0, gzip;q=0')).toBeNull();
+    expect(selectEncoding('identity')).toBeNull();
+    expect(selectEncoding('*;q=0.5')).toBe('br');
+    expect(selectEncoding('*;q=0')).toBeNull();
+    expect(selectEncoding('')).toBeNull();
+  });
+
+  it.each(['GET', 'HEAD'])('survives non-directory paths and oversized path segments for %s', async (method) => {
+    const nonDirectory = await fetch(`${origin}/index.html/x`, { method });
+    const oversized = await fetch(`${origin}/${'a'.repeat(300)}`, { method });
+    expect(nonDirectory.status).toBe(404);
+    expect(oversized.status).toBe(400);
+    expect(nonDirectory.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(oversized.headers.get('x-content-type-options')).toBe('nosniff');
+
+    const healthy = await fetch(`${origin}/`);
+    expect(healthy.status).toBe(200);
+    expect(await healthy.text()).toContain('App shell');
+  });
+
+  it('handles unexpected filesystem errors without terminating the server', async () => {
+    const stat = vi.spyOn(nodeFs, 'stat').mockImplementationOnce((_filePath, callback) => {
+      queueMicrotask(() => callback(Object.assign(new Error('Permission denied'), { code: 'EACCES' })));
+    });
+    try {
+      const response = await fetch(`${origin}/private`);
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe('Server Error');
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    } finally {
+      stat.mockRestore();
+    }
+    expect((await fetch(`${origin}/`)).status).toBe(200);
+  });
+
+  it('server respects quality values when negotiating compression', async () => {
+    const gzipResponse = await fetch(`${origin}/assets/index-AbCd1234.js`, {
+      headers: { 'Accept-Encoding': 'br;q=0, gzip;q=1' },
+    });
+    expect(gzipResponse.headers.get('content-encoding')).toBe('gzip');
+    expect(await gzipResponse.text()).toContain('compressible');
+
+    const noneResponse = await fetch(`${origin}/assets/index-AbCd1234.js`, {
+      headers: { 'Accept-Encoding': 'br;q=0, gzip;q=0' },
+    });
+    expect(noneResponse.headers.get('content-encoding')).toBeNull();
+    expect(await noneResponse.text()).toContain('compressible');
   });
 });

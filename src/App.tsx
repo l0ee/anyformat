@@ -9,11 +9,32 @@ import { PaletteEditor } from './components/PaletteEditor';
 import { CodeInspector } from './components/CodeInspector';
 import { BatchQueue } from './components/BatchQueue';
 import { Footer } from './components/Footer';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { UniversalDropzone } from './components/universal/UniversalDropzone';
 import { UniversalQueue } from './components/universal/UniversalQueue';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { getClipboardImages } from './components/clipboardPaste';
+import { ShieldCheck, Cpu, Layers, X } from 'lucide-react';
 
 import { convertUniversalFile } from './engine/universal/converterEngine';
-import { getFileExtension, isSupportedSourceExtension, SUPPORTED_FORMATS, UniversalTaskItem } from './engine/universal/types';
+import {
+  getDefaultExportTarget,
+  getFileExtension,
+  getUniqueFormatLabels,
+  isSupportedSourceExtension,
+  isSupportedConversion,
+  supportsImageExportSettings,
+  MAX_FILE_SIZE_BYTES,
+  MAX_FILE_SIZE_LABEL,
+  SUPPORTED_FORMATS,
+  UniversalTaskItem,
+  ImageExportOptions,
+  VECTOR_STUDIO_INPUT_FORMATS,
+} from './engine/universal/types';
+import { getPdfPageCount } from './engine/pdfConverter';
+import { assertRasterDecodeBudget } from './utils/imageDecodeLimits';
+import { getImageExportErrors } from './engine/universal/imageTransform';
+import { resetUniversalResult } from './utils/universalResultUtils';
 
 import { traceWorkerClient } from './workers/traceWorkerClient';
 import { extractPalette } from './engine/paletteExtractor';
@@ -35,30 +56,49 @@ interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-const SUPPORTED_RASTER_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']);
-const SUPPORTED_RASTER_MIME_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/bmp',
-  'image/gif',
-]);
+const getPreferredMimeMap = (formats: readonly { mime: string; ext: string }[]): Record<string, string> =>
+  Object.fromEntries(
+    formats
+      .filter((format, index) => formats.findIndex((candidate) => candidate.mime === format.mime) === index)
+      .map((format) => [format.mime, format.ext])
+  );
+
+const VECTOR_MIME_TYPES = getPreferredMimeMap(VECTOR_STUDIO_INPUT_FORMATS);
+const UNIVERSAL_MIME_TYPES = getPreferredMimeMap(Object.values(SUPPORTED_FORMATS));
+const VECTOR_STUDIO_FORMAT_LABEL = getUniqueFormatLabels(VECTOR_STUDIO_INPUT_FORMATS).join(', ');
+
+const MAX_QUEUE_CAPACITY = 100;
 
 const isSupportedRasterFile = (file: File): boolean => {
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  return SUPPORTED_RASTER_EXTENSIONS.has(extension) || SUPPORTED_RASTER_MIME_TYPES.has(file.type);
+  const extension = getFileExtension(file.name);
+  return VECTOR_STUDIO_INPUT_FORMATS.some((format) => format.ext === extension || format.mime === file.type);
+};
+
+const getStoredTheme = (): boolean => {
+  try {
+    return localStorage.getItem('theme') === 'dark';
+  } catch {
+    return false;
+  }
+};
+
+const setStoredTheme = (darkMode: boolean): void => {
+  try {
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  } catch {
+    // Ignore storage errors in blocked/private browsing contexts
+  }
 };
 
 export const App: React.FC = () => {
-  const [darkMode, setDarkMode] = useState<boolean>(
-    () => localStorage.getItem('theme') !== 'light'
-  );
-  const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'universal'>('single');
+  const [darkMode, setDarkMode] = useState<boolean>(getStoredTheme);
+  const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'universal'>('universal');
   const [toast, setToast] = useState<Toast | null>(null);
 
   // Universal File Converter state
   const [universalItems, setUniversalItems] = useState<UniversalTaskItem[]>([]);
   const [isUniversalProcessing, setIsUniversalProcessing] = useState<boolean>(false);
+  const [isUniversalStopping, setIsUniversalStopping] = useState(false);
 
   // Single file state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -79,7 +119,7 @@ export const App: React.FC = () => {
 
   const [colorOpts, setColorOpts] = useState<ColorTracerOptions>({
     numberOfColors: 8,
-    quantization: 'median-cut',
+    quantization: 'kmeans',
     turdSize: 2,
     alphaMax: 1.0,
     blurRadius: 0,
@@ -92,9 +132,23 @@ export const App: React.FC = () => {
     removeMetadata: true,
     minify: false,
   });
+  const [debouncedOptOpts, setDebouncedOptOpts] = useState(optOpts);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedOptOpts(optOpts), 100);
+    return () => clearTimeout(timer);
+  }, [optOpts]);
 
   const [rawSvg, setRawSvg] = useState<string>('');
-  const [optimizedSvg, setOptimizedSvg] = useState<string>('');
+  const [optimizedResult, setOptimizedResult] = useState<{
+    source: string;
+    options: OptimizeOptions;
+    svg: string;
+  } | null>(null);
+  const optimizedSvg = optimizedResult?.source === rawSvg ? optimizedResult.svg : '';
+  const isOptimizationPending = Boolean(rawSvg) && (
+    optimizedResult?.source !== rawSvg || optimizedResult.options !== optOpts
+  );
   const [palette, setPalette] = useState<PaletteColor[]>([]);
   const [dimensions, setDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -103,34 +157,52 @@ export const App: React.FC = () => {
   // Batch mode state
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState<boolean>(false);
+  const [isBatchStopping, setIsBatchStopping] = useState(false);
+  const batchAbortControllerRef = useRef<AbortController | null>(null);
+  const universalAbortControllerRef = useRef<AbortController | null>(null);
+  const isBatchProcessingRef = useRef(false);
+  const isUniversalProcessingRef = useRef(false);
   const singleProcessIdRef = useRef(0);
+  const singleAbortControllerRef = useRef<AbortController | null>(null);
   const originalUrlRef = useRef('');
   const batchItemsRef = useRef<BatchItem[]>([]);
   const universalItemsRef = useRef<UniversalTaskItem[]>([]);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState<boolean>(false);
+
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
     setToast({ message, type });
-    setTimeout(() => {
-      setToast((current) => (current?.message === message ? null : current));
-    }, 3000);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, type === 'error' ? 6000 : 3000);
   }, []);
 
   // Dark mode effect
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+    setStoredTheme(darkMode);
   }, [darkMode]);
 
   useEffect(() => { originalUrlRef.current = originalUrl; }, [originalUrl]);
   useEffect(() => { batchItemsRef.current = batchItems; }, [batchItems]);
   useEffect(() => { universalItemsRef.current = universalItems; }, [universalItems]);
   useEffect(() => () => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    singleAbortControllerRef.current?.abort();
+    batchAbortControllerRef.current?.abort();
+    universalAbortControllerRef.current?.abort();
     if (originalUrlRef.current) URL.revokeObjectURL(originalUrlRef.current);
     batchItemsRef.current.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
     universalItemsRef.current.forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
     });
+    universalItemsRef.current = [];
   }, []);
 
   // Handle preset application
@@ -153,10 +225,18 @@ export const App: React.FC = () => {
     showToast(`Preset "${preset}" applied`, 'info');
   };
 
+  const optOptsRef = useRef(optOpts);
+  useEffect(() => { optOptsRef.current = optOpts; }, [optOpts]);
+
   // Run conversion pipeline with non-blocking async delay & debounce
-  const processSingleFile = useCallback(async () => {
+  const processSingleFile = useCallback(async (processId: number) => {
     if (!selectedFile) return;
-    const processId = ++singleProcessIdRef.current;
+    if (processId !== singleProcessIdRef.current) return;
+
+    singleAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    singleAbortControllerRef.current = abortController;
+
     setIsProcessing(true);
 
     // Give browser UI time to render loading spinner before heavy CPU work
@@ -168,101 +248,170 @@ export const App: React.FC = () => {
       let h = 0;
 
       if (tracingMode === 'monochrome') {
-        const result = await traceWorkerClient.traceMonochrome(selectedFile, monoOpts);
+        const result = await traceWorkerClient.traceMonochrome(selectedFile, monoOpts, abortController.signal);
+        if (processId !== singleProcessIdRef.current) return;
         rawResultSvg = result.svg;
         w = result.width;
         h = result.height;
-        if (processId === singleProcessIdRef.current) setPalette([]);
+        setPalette([]);
       } else {
-        const result = await traceWorkerClient.traceColor(selectedFile, colorOpts);
+        const result = await traceWorkerClient.traceColor(selectedFile, colorOpts, abortController.signal);
+        if (processId !== singleProcessIdRef.current) return;
         rawResultSvg = result.svg;
         w = result.width;
         h = result.height;
         if (result.colors) {
-          if (processId === singleProcessIdRef.current) setPalette(result.colors);
+          setPalette(result.colors);
         } else {
           const extPalette = await extractPalette(selectedFile, colorOpts.numberOfColors || 8);
-          if (processId === singleProcessIdRef.current) setPalette(extPalette);
+          if (processId !== singleProcessIdRef.current) return;
+          setPalette(extPalette);
         }
       }
 
       if (processId !== singleProcessIdRef.current) return;
       setRawSvg(rawResultSvg);
       setDimensions({ width: w, height: h });
-
-      // Apply optimization
-      const optResult = optimizeSvg(rawResultSvg, optOpts);
-      setOptimizedSvg(optResult.svg);
     } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Tracing error occurred';
       console.error('Tracing error:', err);
       if (processId === singleProcessIdRef.current) showToast(msg, 'error');
     } finally {
       if (processId === singleProcessIdRef.current) setIsProcessing(false);
     }
-  }, [selectedFile, tracingMode, monoOpts, colorOpts, optOpts, showToast]);
+  }, [selectedFile, tracingMode, monoOpts, colorOpts, showToast]);
 
   // Re-run single processing on file or trace config change with 350ms debounce
   useEffect(() => {
     if (!selectedFile) return;
 
+    const processId = ++singleProcessIdRef.current;
+    setIsProcessing(true);
+
     const timer = setTimeout(() => {
-      processSingleFile();
+      processSingleFile(processId);
     }, 350);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      singleAbortControllerRef.current?.abort();
+    };
   // Optimization settings are intentionally excluded; the next effect updates only the SVG output.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFile, tracingMode, monoOpts, colorOpts]);
+  }, [selectedFile, tracingMode, monoOpts, colorOpts, processSingleFile]);
 
-  // Re-run optimization when cleanup settings change
+  // Optimize each new trace once, coalescing rapid cleanup setting changes.
   useEffect(() => {
     if (rawSvg) {
-      const optResult = optimizeSvg(rawSvg, optOpts);
-      setOptimizedSvg(optResult.svg);
+      const optResult = optimizeSvg(rawSvg, debouncedOptOpts);
+      setOptimizedResult({ source: rawSvg, options: debouncedOptOpts, svg: optResult.svg });
     }
-  }, [rawSvg, optOpts]);
+  }, [rawSvg, debouncedOptOpts]);
+
+  // Serialize bounded header checks so rapid additions preserve order and
+  // consult the latest queue state before allocating any preview URLs.
+  const intakeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const intakeVersionsRef = useRef({ single: 0, batch: 0, universal: 0 });
+  useEffect(() => () => {
+    intakeVersionsRef.current.single++;
+    intakeVersionsRef.current.batch++;
+    intakeVersionsRef.current.universal++;
+  }, []);
+
+  const scheduleFileIntake = (mode: 'single' | 'batch' | 'universal', files: File[]) => {
+    if (mode === 'single') intakeVersionsRef.current.single++;
+    const version = intakeVersionsRef.current[mode];
+    intakeQueueRef.current = intakeQueueRef.current.then(async () => {
+      const accepted: File[] = [];
+      const errors: string[] = [];
+      for (const file of files) {
+        if (intakeVersionsRef.current[mode] !== version) return;
+        try {
+          // Byte-size rejection remains in the existing handlers. Avoid even
+          // reading oversized files; SVG/PDF have no raster header to inspect.
+          if (file.size <= MAX_FILE_SIZE_BYTES) await assertRasterDecodeBudget(file);
+          accepted.push(file);
+        } catch (error) {
+          errors.push(`${file.name}: ${error instanceof Error ? error.message : 'Image preflight failed.'}`);
+        }
+      }
+      if (intakeVersionsRef.current[mode] !== version) return;
+      if (accepted.length) validatedIntakeRef.current[mode](accepted);
+      if (errors.length) showToast(errors.join(' '), 'error');
+    }).catch((error) => {
+      showToast(error instanceof Error ? error.message : 'Could not add files.', 'error');
+    });
+  };
+
+  const handleSingleFileSelect = (files: FileList | File[]) => scheduleFileIntake('single', Array.from(files).slice(0, 1));
+  const handleBatchFileSelect = (files: FileList | File[]) => scheduleFileIntake('batch', Array.from(files));
+  const handleUniversalFilesAdded = (files: File[]) => scheduleFileIntake('universal', files);
 
   // Reset single file state and revoke Object URL
   const resetSingleFileState = () => {
+    intakeVersionsRef.current.single++;
     singleProcessIdRef.current += 1;
+    singleAbortControllerRef.current?.abort();
+    singleAbortControllerRef.current = null;
     if (originalUrl) {
       URL.revokeObjectURL(originalUrl);
     }
     setSelectedFile(null);
     setOriginalUrl('');
     setRawSvg('');
-    setOptimizedSvg('');
+    setOptimizedResult(null);
     setPalette([]);
     setDimensions({ width: 0, height: 0 });
   };
 
   // Handle single file drop
-  const handleSingleFileSelect = (files: FileList | File[]) => {
+  const handleValidatedSingleFileSelect = (files: File[]) => {
     const file = files[0];
     if (file && isSupportedRasterFile(file)) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        showToast(`${file.name} exceeded the ${MAX_FILE_SIZE_LABEL} limit.`, 'error');
+        return;
+      }
       resetSingleFileState();
       setSelectedFile(file);
       const url = URL.createObjectURL(file);
       setOriginalUrl(url);
       showToast(`Loaded ${file.name}`, 'info');
     } else if (file) {
-      showToast('Unsupported file. Choose a PNG, JPG, WebP, BMP, or GIF image.', 'error');
+      showToast(`Unsupported file. Choose a ${VECTOR_STUDIO_FORMAT_LABEL} image.`, 'error');
     }
   };
 
   // Handle batch file drop
-  const handleBatchFileSelect = (files: FileList | File[]) => {
+  const handleValidatedBatchFileSelect = (files: File[]) => {
     const selectedFiles = Array.from(files);
-    const validFiles = selectedFiles.filter(isSupportedRasterFile);
-    const rejectedCount = selectedFiles.length - validFiles.length;
+    const supportedFiles = selectedFiles.filter(isSupportedRasterFile);
+    const rejectedFormatCount = selectedFiles.length - supportedFiles.length;
+
+    const validFiles = supportedFiles.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
+    const oversizedCount = supportedFiles.length - validFiles.length;
+
+    if (oversizedCount > 0) {
+      showToast(
+        `${oversizedCount} file${oversizedCount === 1 ? '' : 's'} exceeded the ${MAX_FILE_SIZE_LABEL} limit and ${oversizedCount === 1 ? 'was' : 'were'} skipped.`,
+        'error'
+      );
+    }
 
     if (validFiles.length === 0) {
-      showToast('No supported images found. Choose PNG, JPG, WebP, BMP, or GIF files.', 'error');
+      if (rejectedFormatCount > 0 && oversizedCount === 0) {
+        showToast(`No supported images found. Choose ${VECTOR_STUDIO_FORMAT_LABEL} files.`, 'error');
+      }
       return;
     }
 
-    const newItems: BatchItem[] = validFiles.map((file) => ({
+    const availableCapacity = Math.max(0, MAX_QUEUE_CAPACITY - batchItemsRef.current.length);
+    const acceptedFiles = validFiles.slice(0, availableCapacity);
+    const overCapCount = validFiles.length - acceptedFiles.length;
+
+    const newItems: BatchItem[] = acceptedFiles.map((file) => ({
       id: Math.random().toString(36).substring(2, 9),
       file,
       name: file.name,
@@ -270,13 +419,25 @@ export const App: React.FC = () => {
       progress: 0,
       previewUrl: URL.createObjectURL(file),
     }));
-    setBatchItems((prev) => [...prev, ...newItems]);
-    showToast(
-      rejectedCount > 0
-        ? `Added ${newItems.length} image${newItems.length === 1 ? '' : 's'}; skipped ${rejectedCount} unsupported file${rejectedCount === 1 ? '' : 's'}.`
-        : `Added ${newItems.length} file(s) to queue`,
-      rejectedCount > 0 ? 'error' : 'info'
-    );
+
+    if (newItems.length > 0) {
+      batchItemsRef.current = [...batchItemsRef.current, ...newItems];
+      setBatchItems((prev) => [...prev, ...newItems]);
+    }
+
+    if (overCapCount > 0) {
+      showToast(
+        `Accepted ${acceptedFiles.length} image${acceptedFiles.length === 1 ? '' : 's'}; skipped ${overCapCount} file${overCapCount === 1 ? '' : 's'} (${overCapCount} over the 100-file queue limit).`,
+        'error'
+      );
+    } else if (rejectedFormatCount > 0) {
+      showToast(
+        `Added ${newItems.length} image${newItems.length === 1 ? '' : 's'}; skipped ${rejectedFormatCount} unsupported file${rejectedFormatCount === 1 ? '' : 's'}.`,
+        'error'
+      );
+    } else {
+      showToast(`Added ${newItems.length} file(s) to queue`, 'info');
+    }
   };
 
   const handleRemoveBatchItem = (id: string) => {
@@ -290,63 +451,142 @@ export const App: React.FC = () => {
   };
 
   const handleClearBatchQueue = () => {
+    intakeVersionsRef.current.batch++;
     batchItems.forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     });
+    batchItemsRef.current = [];
     setBatchItems([]);
     showToast('Batch queue cleared', 'info');
   };
 
   // Run Batch Processing
-  const startBatchProcess = async () => {
+  const stopBatchProcess = () => {
+    if (!batchAbortControllerRef.current) return;
+    setIsBatchStopping(true);
+    batchAbortControllerRef.current.abort();
+  };
+
+  const startBatchProcess = async (targetIds?: string[] | unknown) => {
+    if (isBatchProcessingRef.current) return;
+    isBatchProcessingRef.current = true;
     setIsBatchProcessing(true);
-    const updated = batchItems.map((item) => ({ ...item }));
-    const commitBatchUpdates = () => {
-      setBatchItems((current) => {
-        const updatesById = new Map(updated.map((item) => [item.id, item]));
-        return current.map((item) => updatesById.get(item.id) || item);
-      });
+    setIsBatchStopping(false);
+    const controller = new AbortController();
+    batchAbortControllerRef.current = controller;
+    const processedIds = new Set<string>();
+    const ids = Array.isArray(targetIds) ? targetIds : undefined;
+
+    const finalStatuses = new Map<string, 'idle' | 'processing' | 'completed' | 'error'>();
+    batchItemsRef.current.forEach((item) => finalStatuses.set(item.id, item.status));
+
+    const runWorker = async () => {
+      while (!controller.signal.aborted) {
+        const nextItem = batchItemsRef.current.find(
+          (item) => item.status !== 'completed' && item.status !== 'processing' && !processedIds.has(item.id) && (ids ? ids.includes(item.id) : true)
+        );
+        if (!nextItem) break;
+
+        // Claim synchronously before yielding; React state/ref synchronization
+        // is not a lock and another runner may still see this item as idle.
+        processedIds.add(nextItem.id);
+        const currentId = nextItem.id;
+        const currentFile = nextItem.file;
+
+        setBatchItems((current) => {
+          const updated = current.map((item) =>
+            item.id === currentId
+              ? { ...item, status: 'processing' as const, progress: 20, stage: 'Reading image…', error: undefined }
+              : item
+          );
+          batchItemsRef.current = updated;
+          return updated;
+        });
+
+        // Yield thread to UI between batch files
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        try {
+          controller.signal.throwIfAborted();
+          setBatchItems((current) => current.map((item) => item.id === currentId ? { ...item, stage: 'Tracing shapes…' } : item));
+          let svgRes = '';
+          let width = 0;
+          let height = 0;
+          if (tracingMode === 'monochrome') {
+            const res = await traceWorkerClient.traceMonochrome(currentFile, monoOpts, controller.signal);
+            svgRes = res.svg;
+            width = res.width;
+            height = res.height;
+          } else {
+            const res = await traceWorkerClient.traceColor(currentFile, colorOpts, controller.signal);
+            svgRes = res.svg;
+            width = res.width;
+            height = res.height;
+          }
+
+          controller.signal.throwIfAborted();
+          const optRes = optimizeSvg(svgRes, optOptsRef.current);
+          finalStatuses.set(currentId, 'completed');
+
+          setBatchItems((current) => {
+            const updated = current.map((item) =>
+              item.id === currentId
+                ? {
+                    ...item,
+                    svgResult: optRes.svg,
+                    resultSize: new Blob([optRes.svg]).size,
+                    status: 'completed' as const,
+                    progress: 100,
+                    stage: undefined,
+                    width,
+                    height,
+                  }
+                : item
+            );
+            batchItemsRef.current = updated;
+            return updated;
+          });
+        } catch (err: unknown) {
+          if (controller.signal.aborted) {
+            finalStatuses.set(currentId, 'idle');
+            setBatchItems((current) => {
+              const updated = current.map((item) => item.id === currentId ? { ...item, status: 'idle' as const, progress: 0, stage: undefined, error: undefined } : item);
+              batchItemsRef.current = updated;
+              return updated;
+            });
+            break;
+          }
+          const errMsg = err instanceof Error ? err.message : 'Tracing failed';
+          finalStatuses.set(currentId, 'error');
+
+          setBatchItems((current) => {
+            const updated = current.map((item) =>
+              item.id === currentId
+                ? { ...item, status: 'error' as const, stage: undefined, error: errMsg }
+                : item
+            );
+            batchItemsRef.current = updated;
+            return updated;
+          });
+        }
+      }
     };
 
-    for (let i = 0; i < updated.length; i++) {
-      if (updated[i].status === 'completed') continue;
-
-      updated[i].status = 'processing';
-      updated[i].progress = 20;
-      updated[i].error = undefined;
-      commitBatchUpdates();
-
-      // Yield thread to UI between batch files
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      try {
-        let svgRes = '';
-        if (tracingMode === 'monochrome') {
-          const res = await traceWorkerClient.traceMonochrome(updated[i].file, monoOpts);
-          svgRes = res.svg;
-          updated[i].width = res.width;
-          updated[i].height = res.height;
-        } else {
-          const res = await traceWorkerClient.traceColor(updated[i].file, colorOpts);
-          svgRes = res.svg;
-          updated[i].width = res.width;
-          updated[i].height = res.height;
-        }
-
-        const optRes = optimizeSvg(svgRes, optOpts);
-        updated[i].svgResult = optRes.svg;
-        updated[i].status = 'completed';
-        updated[i].progress = 100;
-      } catch (err: unknown) {
-        updated[i].status = 'error';
-        updated[i].error = err instanceof Error ? err.message : 'Tracing failed';
-      }
-
-      commitBatchUpdates();
+    try {
+      await Promise.all(Array.from({ length: traceWorkerClient.concurrency }, runWorker));
+    } finally {
+      isBatchProcessingRef.current = false;
+      setIsBatchProcessing(false);
+      setIsBatchStopping(false);
+      batchAbortControllerRef.current = null;
     }
 
-    setIsBatchProcessing(false);
-    const failureCount = updated.filter((item) => item.status === 'error').length;
+    if (controller.signal.aborted) {
+      showToast('Processing stopped. Completed files are kept; remaining files are ready to resume.', 'info');
+      return;
+    }
+
+    const failureCount = Array.from(finalStatuses.values()).filter((s) => s === 'error').length;
     showToast(
       failureCount > 0
         ? `Batch finished with ${failureCount} failed file${failureCount === 1 ? '' : 's'}.`
@@ -428,43 +668,147 @@ export const App: React.FC = () => {
   };
 
   // Universal File Handlers
-  const handleUniversalFilesAdded = (files: File[]) => {
-    const supportedFiles = files.filter((file) => {
-      return isSupportedSourceExtension(getFileExtension(file.name));
-    });
-    const newTasks: UniversalTaskItem[] = supportedFiles.map((file) => {
+  const handleValidatedUniversalFilesAdded = (files: File[]) => {
+    const valid: Pick<UniversalTaskItem, 'file' | 'sourceExt' | 'targetExt'>[] = [];
+    const oversized: File[] = [];
+    const unsupported: File[] = [];
+    const unavailable: File[] = [];
+
+    files.forEach((file) => {
       const ext = getFileExtension(file.name);
-      const targetExt = SUPPORTED_FORMATS[ext].canExportTo[0];
-      return {
-        id: Math.random().toString(36).substring(2, 9),
-        file,
-        name: file.name,
-        sourceExt: ext,
-        targetExt,
-        status: 'idle',
-        progress: 0,
-        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-      };
+      if (!isSupportedSourceExtension(ext)) {
+        unsupported.push(file);
+      } else if (file.size > MAX_FILE_SIZE_BYTES) {
+        oversized.push(file);
+      } else {
+        const targetExt = getDefaultExportTarget(ext);
+        if (!targetExt) unavailable.push(file);
+        else valid.push({ file, sourceExt: ext, targetExt });
+      }
     });
-    setUniversalItems((prev) => [...prev, ...newTasks]);
-    showToast(`Added ${newTasks.length} file(s) to Universal Converter`, 'info');
+
+    if (oversized.length > 0) {
+      showToast(
+        `${oversized.length} file${oversized.length === 1 ? '' : 's'} exceeded the ${MAX_FILE_SIZE_LABEL} limit and ${oversized.length === 1 ? 'was' : 'were'} skipped.`,
+        'error'
+      );
+    }
+    if (unsupported.length > 0) {
+      showToast(
+        `${unsupported.length} unsupported file${unsupported.length === 1 ? '' : 's'} skipped.`,
+        'error'
+      );
+    }
+    if (unavailable.length > 0) {
+      showToast(
+        `${unavailable.length} file${unavailable.length === 1 ? '' : 's'} had no supported default output format and ${unavailable.length === 1 ? 'was' : 'were'} skipped.`,
+        'error'
+      );
+    }
+
+    const availableCapacity = Math.max(0, MAX_QUEUE_CAPACITY - universalItemsRef.current.length);
+    const acceptedFiles = valid.slice(0, availableCapacity);
+    const overCapCount = valid.length - acceptedFiles.length;
+
+    // All source/target metadata is validated before allocating preview URLs.
+    const newTasks: UniversalTaskItem[] = acceptedFiles.map(({ file, sourceExt, targetExt }) => ({
+      id: Math.random().toString(36).substring(2, 9),
+      file,
+      name: file.name,
+      sourceExt,
+      targetExt,
+      status: 'idle',
+      progress: 0,
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      pageNumber: sourceExt === 'pdf' ? 1 : undefined,
+    }));
+
+    if (newTasks.length > 0) {
+      universalItemsRef.current = [...universalItemsRef.current, ...newTasks];
+      setUniversalItems((prev) => [...prev, ...newTasks]);
+
+      // Read PDF page counts asynchronously with controlled concurrency (max 2 parallel tasks)
+      const pdfTasks = newTasks.filter((task) => task.sourceExt === 'pdf');
+      if (pdfTasks.length > 0) {
+        (async () => {
+          const queue = [...pdfTasks];
+          const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
+            while (queue.length > 0) {
+              const task = queue.shift();
+              if (!task) break;
+              try {
+                const numPages = await getPdfPageCount(task.file);
+                setUniversalItems((current) =>
+                  current.map((item) =>
+                    item.id === task.id ? { ...item, pageCount: numPages } : item
+                  )
+                );
+              } catch (err) {
+                console.warn(`Failed to read PDF page count for ${task.name}:`, err);
+                const message = err instanceof Error ? err.message : 'Invalid PDF document';
+                setUniversalItems((current) =>
+                  current.map((item) =>
+                    item.id === task.id
+                      ? { ...item, status: 'error', error: message }
+                      : item
+                  )
+                );
+              }
+            }
+          });
+          await Promise.all(workers);
+        })();
+      }
+    }
+
+    if (overCapCount > 0) {
+      showToast(
+        `Accepted ${acceptedFiles.length} file${acceptedFiles.length === 1 ? '' : 's'}; skipped ${overCapCount} file${overCapCount === 1 ? '' : 's'} (${overCapCount} over the 100-file queue limit).`,
+        'error'
+      );
+    } else if (newTasks.length > 0 && oversized.length === 0 && unsupported.length === 0 && unavailable.length === 0) {
+      showToast(`Added ${newTasks.length} file(s) to AnyFormat`, 'info');
+    }
+  };
+
+  const handleUniversalPageChange = (id: string, pageNumber: number) => {
+    if (isUniversalProcessingRef.current) return;
+    const updated = universalItemsRef.current.map((item) => {
+      if (item.id !== id || item.pageNumber === pageNumber) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), pageNumber };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
   };
 
   const handleUniversalTargetChange = (id: string, targetExt: string) => {
-    setUniversalItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, targetExt } : item))
-    );
+    if (isUniversalProcessingRef.current) return;
+    const updated = universalItemsRef.current.map((item) => {
+      if (item.id !== id || item.targetExt === targetExt || !isSupportedConversion(item.sourceExt, targetExt)) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), targetExt };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
   };
 
   const handleUniversalApplyAllTarget = (targetExt: string) => {
-    const supportsEveryItem = universalItems.every((item) =>
-      SUPPORTED_FORMATS[item.sourceExt]?.canExportTo.includes(targetExt)
+    if (isUniversalProcessingRef.current) return;
+    const supportsEveryItem = universalItemsRef.current.every((item) =>
+      isSupportedConversion(item.sourceExt, targetExt)
     );
     if (!supportsEveryItem) {
       showToast(`.${targetExt.toUpperCase()} is not available for every queued source file.`, 'error');
       return;
     }
-    setUniversalItems((prev) => prev.map((item) => ({ ...item, targetExt })));
+    const updated = universalItemsRef.current.map((item) => {
+      if (item.targetExt === targetExt) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), targetExt };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
     showToast(`Set all target formats to .${targetExt.toUpperCase()}`, 'info');
   };
 
@@ -477,74 +821,214 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleClearCompletedUniversal = () => {
+    setUniversalItems((prev) => {
+      prev.forEach((item) => {
+        if (item.status === 'completed') {
+          if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+          if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+        }
+      });
+      return prev.filter((item) => item.status !== 'completed');
+    });
+  };
+
+  const handleRetryFailedUniversal = () => {
+    if (isUniversalProcessingRef.current) return;
+
+    const failedIds = universalItemsRef.current
+      .filter((item) => item.status === 'error')
+      .map((item) => item.id);
+    if (failedIds.length === 0) return;
+
+    const updated = universalItemsRef.current.map((item) =>
+      failedIds.includes(item.id)
+        ? { ...item, status: 'idle' as const, error: undefined, progress: 0 }
+        : item
+    );
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
+
+    startUniversalConversion(failedIds);
+  };
+
   const handleClearUniversalQueue = () => {
+    intakeVersionsRef.current.universal++;
     universalItems.forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
     });
+    universalItemsRef.current = [];
     setUniversalItems([]);
-    showToast('Universal queue cleared', 'info');
+    showToast('AnyFormat queue cleared', 'info');
   };
 
-  const startUniversalConversion = async () => {
+  const handleImageOptionsChange = (id: string, options: ImageExportOptions, applyAll = false) => {
+    if (isUniversalProcessingRef.current) return;
+    if (applyAll && Object.keys(getImageExportErrors(options)).length > 0) return;
+    const updated = universalItemsRef.current.map((item) => {
+      const compatible = supportsImageExportSettings(item.sourceExt, item.targetExt);
+      if (!compatible || (!applyAll && item.id !== id)) return item;
+      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+      return { ...resetUniversalResult(item), imageOptions: { ...options } };
+    });
+    universalItemsRef.current = updated;
+    setUniversalItems(updated);
+  };
+
+  const startUniversalConversion = async (targetIds?: string[] | unknown) => {
+    if (isUniversalProcessingRef.current) return;
+    const ids = Array.isArray(targetIds) ? targetIds : undefined;
+    const invalidItem = universalItemsRef.current.find((item) => item.status === 'idle'
+      && (!ids || ids.includes(item.id))
+      && supportsImageExportSettings(item.sourceExt, item.targetExt)
+      && Object.keys(getImageExportErrors(item.imageOptions)).length > 0);
+    if (invalidItem) {
+      showToast(`Fix image settings for ${invalidItem.name} before converting.`, 'error');
+      return;
+    }
+    isUniversalProcessingRef.current = true;
     setIsUniversalProcessing(true);
-    const updated = universalItems.map((item) => ({ ...item }));
-    const commitUniversalUpdates = () => {
-      setUniversalItems((current) => {
-        const updatesById = new Map(updated.map((item) => [item.id, item]));
-        return current.map((item) => updatesById.get(item.id) || item);
-      });
-    };
+    setIsUniversalStopping(false);
+    const controller = new AbortController();
+    universalAbortControllerRef.current = controller;
 
-    for (let i = 0; i < updated.length; i++) {
-      if (updated[i].status === 'completed') continue;
+    let processedCount = 0;
+    let failedCount = 0;
 
-      updated[i].status = 'processing';
-      updated[i].progress = 10;
-      commitUniversalUpdates();
-
-      await new Promise((resolve) => setTimeout(resolve, 30));
-
-      try {
-        const result = await convertUniversalFile(
-          updated[i].file,
-          updated[i].targetExt,
-          (percent) => {
-          updated[i].progress = percent;
-            commitUniversalUpdates();
+    try {
+      while (!controller.signal.aborted) {
+        let nextTask: UniversalTaskItem | null = null;
+        for (const item of universalItemsRef.current) {
+          const isTargeted = ids ? ids.includes(item.id) : true;
+          if (item.status === 'idle' && isTargeted) {
+            nextTask = { ...item };
+            break;
           }
+        }
+
+        if (!nextTask) break;
+
+        const currentId = nextTask.id;
+        const currentFile = nextTask.file;
+        const currentTargetExt = nextTask.targetExt;
+        const currentPageNumber = nextTask.pageNumber;
+
+        setUniversalItems((current) =>
+          current.map((i) =>
+            i.id === currentId ? { ...i, status: 'processing', progress: 10, stage: 'Reading file…', error: undefined } : i
+          )
         );
 
-        updated[i].resultBlob = result.blob;
-        updated[i].resultUrl = URL.createObjectURL(result.blob);
-        updated[i].resultSize = result.blob.size;
-        updated[i].status = 'completed';
-        updated[i].progress = 100;
-      } catch (err: unknown) {
-        updated[i].status = 'error';
-        updated[i].error = err instanceof Error ? err.message : 'Conversion failed';
-      }
+        await new Promise((resolve) => setTimeout(resolve, 30));
 
-      commitUniversalUpdates();
+        try {
+          controller.signal.throwIfAborted();
+          const result = await convertUniversalFile(
+            currentFile,
+            currentTargetExt,
+            (percent) => {
+              if (controller.signal.aborted) return;
+              setUniversalItems((current) =>
+                current.map((i) => (i.id === currentId ? { ...i, progress: percent } : i))
+              );
+            },
+            {
+              pageNumber: currentPageNumber,
+              image: { ...nextTask.imageOptions },
+              signal: controller.signal,
+              onStage: (stage) => {
+                if (!controller.signal.aborted) setUniversalItems((current) => current.map((item) => item.id === currentId ? { ...item, stage } : item));
+              },
+            }
+          );
+
+          controller.signal.throwIfAborted();
+          // A cleared or unmounted queue must not retain a late conversion URL.
+          if (!universalItemsRef.current.some((item) => item.id === currentId)) continue;
+          const resultUrl = URL.createObjectURL(result.blob);
+          setUniversalItems((current) =>
+            current.map((i) =>
+              i.id === currentId
+                ? {
+                    ...i,
+                    status: 'completed',
+                    progress: 100,
+                    stage: undefined,
+                    resultBlob: result.blob,
+                    resultFilename: result.filename,
+                    resultUrl,
+                    resultSize: result.blob.size,
+                    imageOutput: result.imageOutput,
+                  }
+                : i
+            )
+          );
+
+          processedCount++;
+        } catch (err: unknown) {
+          if (controller.signal.aborted) {
+            setUniversalItems((current) => {
+              const updated = current.map((item) => item.id === currentId ? { ...item, status: 'idle' as const, progress: 0, stage: undefined, error: undefined } : item);
+              universalItemsRef.current = updated;
+              return updated;
+            });
+            break;
+          }
+          failedCount++;
+          const errorMsg = err instanceof Error ? err.message : 'Conversion failed';
+          setUniversalItems((current) =>
+            current.map((i) =>
+              i.id === currentId ? { ...i, status: 'error', stage: undefined, error: errorMsg } : i
+            )
+          );
+        }
+      }
+    } finally {
+      isUniversalProcessingRef.current = false;
+      setIsUniversalProcessing(false);
+      setIsUniversalStopping(false);
+      universalAbortControllerRef.current = null;
     }
 
-    setIsUniversalProcessing(false);
-    const failureCount = updated.filter((item) => item.status === 'error').length;
-    showToast(
-      failureCount > 0
-        ? `Conversion finished with ${failureCount} failed file${failureCount === 1 ? '' : 's'}.`
-        : 'Universal conversion complete!',
-      failureCount > 0 ? 'error' : 'success'
-    );
+    if (controller.signal.aborted) {
+      showToast('Processing stopped. Completed files are kept; remaining files are ready to resume.', 'info');
+      return;
+    }
+
+    if (failedCount > 0) {
+      showToast(
+        `Conversion finished with ${failedCount} failed file${failedCount === 1 ? '' : 's'}.`,
+        'error'
+      );
+    } else if (processedCount === 1) {
+      showToast('Conversion complete. Choose Download to save your file.', 'success');
+    } else if (processedCount > 0) {
+      showToast('AnyFormat conversion complete!', 'success');
+    }
   };
 
   const downloadUniversalItem = (id: string) => {
     const item = universalItems.find((i) => i.id === id);
     if (item?.resultBlob) {
-      const baseName = item.name.replace(/\.[^/.]+$/, '');
-      downloadBlob(item.resultBlob, `${baseName}.${item.targetExt}`);
-      showToast(`Downloaded ${baseName}.${item.targetExt}`, 'success');
+      const filename = item.resultFilename || `${item.name.replace(/\.[^/.]+$/, '')}.${item.targetExt}`;
+      downloadBlob(item.resultBlob, filename);
+      showToast(`Downloaded ${filename}`, 'success');
     }
+  };
+
+  const stopUniversalConversion = () => {
+    if (!universalAbortControllerRef.current) return;
+    setIsUniversalStopping(true);
+    universalAbortControllerRef.current.abort();
+  };
+
+  const downloadBatchItem = (id: string) => {
+    const item = batchItemsRef.current.find((entry) => entry.id === id);
+    if (!item?.svgResult) return;
+    const filename = `${item.name.replace(/\.[^/.]+$/, '')}.svg`;
+    downloadBlob(new Blob([item.svgResult], { type: 'image/svg+xml' }), filename);
+    showToast(`Downloaded ${filename}`, 'success');
   };
 
   const exportBatchZipFiles = async () => {
@@ -570,7 +1054,7 @@ export const App: React.FC = () => {
     const exportItems = universalItems
       .filter((i) => i.status === 'completed' && i.resultBlob)
       .map((i) => ({
-        filename: `${i.name.replace(/\.[^/.]+$/, '')}.${i.targetExt}`,
+        filename: i.resultFilename || `${i.name.replace(/\.[^/.]+$/, '')}.${i.targetExt}`,
         content: i.resultBlob!,
       }));
 
@@ -578,15 +1062,94 @@ export const App: React.FC = () => {
     try {
       const zipBlob = await exportBatchZip(exportItems);
       downloadBlob(zipBlob, 'converted_files.zip');
-      showToast('Universal ZIP exported!', 'success');
+      showToast('AnyFormat ZIP exported!', 'success');
     } catch (err) {
       console.error('ZIP export error:', err);
       showToast('Failed to export ZIP file', 'error');
     }
   };
 
+  useKeyboardShortcuts({
+    onHelp: () => setIsShortcutsOpen((prev) => !prev),
+    onCommandK: () => setIsShortcutsOpen((prev) => !prev),
+    onEscape: () => setIsShortcutsOpen(false),
+    onNextTab: () => {
+      setActiveTab((prev) => (prev === 'universal' ? 'single' : prev === 'single' ? 'batch' : 'universal'));
+    },
+    onPrevTab: () => {
+      setActiveTab((prev) => (prev === 'universal' ? 'batch' : prev === 'batch' ? 'single' : 'universal'));
+    },
+    onTabSelect: (tabIndex) => {
+      if (tabIndex === 1) setActiveTab('single');
+      else if (tabIndex === 2) setActiveTab('batch');
+      else if (tabIndex === 3) setActiveTab('universal');
+    },
+    onToggleTheme: () => setDarkMode((prev) => !prev),
+    onConvert: () => {
+      if (activeTab === 'universal') {
+        if (!isUniversalProcessing && universalItems.length > 0) {
+          if (!universalItems.some((item) => item.status === 'idle') && universalItems.some((item) => item.status === 'error')) {
+            handleRetryFailedUniversal();
+          } else {
+            startUniversalConversion();
+          }
+        }
+      } else if (activeTab === 'batch') {
+        if (!isBatchProcessing && batchItems.length > 0) {
+          startBatchProcess();
+        }
+      }
+    },
+  });
+
+  const validatedIntakeRef = useRef({
+    single: handleValidatedSingleFileSelect,
+    batch: handleValidatedBatchFileSelect,
+    universal: handleValidatedUniversalFilesAdded,
+  });
+  useEffect(() => {
+    validatedIntakeRef.current = {
+      single: handleValidatedSingleFileSelect,
+      batch: handleValidatedBatchFileSelect,
+      universal: handleValidatedUniversalFilesAdded,
+    };
+  });
+  const handleSingleFileSelectRef = useRef(handleSingleFileSelect);
+  const handleBatchFileSelectRef = useRef(handleBatchFileSelect);
+  const handleUniversalFilesAddedRef = useRef(handleUniversalFilesAdded);
+
+  useEffect(() => {
+    handleSingleFileSelectRef.current = handleSingleFileSelect;
+    handleBatchFileSelectRef.current = handleBatchFileSelect;
+    handleUniversalFilesAddedRef.current = handleUniversalFilesAdded;
+  });
+
+  useEffect(() => {
+    const handleWindowPaste = (e: ClipboardEvent) => {
+      const mimeMap = activeTab === 'universal' ? UNIVERSAL_MIME_TYPES : VECTOR_MIME_TYPES;
+      const files = getClipboardImages(e, mimeMap);
+      if (files.length === 0) return;
+
+      e.preventDefault();
+      if (activeTab === 'single') {
+        handleSingleFileSelectRef.current([files[0]]);
+      } else if (activeTab === 'batch') {
+        if (!isBatchProcessing) {
+          handleBatchFileSelectRef.current(files);
+        }
+      } else if (activeTab === 'universal') {
+        if (!isUniversalProcessing) {
+          handleUniversalFilesAddedRef.current(files);
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => window.removeEventListener('paste', handleWindowPaste);
+  }, [activeTab, isBatchProcessing, isUniversalProcessing]);
+
   return (
-    <div className="app-shell relative isolate min-h-screen overflow-x-clip bg-slate-50 text-slate-900 transition-colors dark:bg-slate-950 dark:text-white">
+    <div className="app-shell relative isolate min-h-screen overflow-x-clip text-stone-900 transition-colors dark:text-white">
       <a href="#main-content" className="skip-link">
         Skip to converter
       </a>
@@ -596,12 +1159,13 @@ export const App: React.FC = () => {
         setDarkMode={setDarkMode}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
 
       {/* Toast Notification Banner */}
       {toast && (
         <div
-          className="app-toast fixed inset-x-3 bottom-3 z-[60] flex justify-center sm:inset-x-auto sm:bottom-5 sm:right-5"
+          className="app-toast fixed inset-x-3 bottom-16 z-[60] flex justify-center sm:inset-x-auto sm:bottom-5 sm:right-5"
           role={toast.type === 'error' ? 'alert' : 'status'}
           aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
@@ -616,6 +1180,11 @@ export const App: React.FC = () => {
             }`}
           >
             <span>{toast.message}</span>
+            <button type="button" aria-label="Dismiss notification" onClick={() => {
+              if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+              toastTimeoutRef.current = null;
+              setToast(null);
+            }} className="ml-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-white hover:bg-white/20"><X aria-hidden="true" className="h-4 w-4" /></button>
           </div>
         </div>
       )}
@@ -625,12 +1194,26 @@ export const App: React.FC = () => {
         tabIndex={-1}
         className="app-main relative mx-auto max-w-7xl space-y-6 px-3 pb-8 pt-6 sm:space-y-8 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8"
       >
-        <HeroHeader activeTab={activeTab} />
+        <HeroHeader activeTab={activeTab} compact={activeTab === 'single' ? Boolean(selectedFile) : activeTab === 'batch' ? batchItems.length > 0 : universalItems.length > 0} />
+
+        {activeTab !== 'universal' && (
+          <div className="svg-workspace-options">
+            <span>{activeTab === 'batch' ? 'Batch workspace · shared settings for all images' : 'Single-image workspace · live preview'}</span>
+            <button type="button" onClick={() => setActiveTab(activeTab === 'batch' ? 'single' : 'batch')}>
+              {activeTab === 'batch' ? 'Work on one image' : 'Work with multiple images'}
+            </button>
+          </div>
+        )}
 
         {activeTab === 'single' ? (
           <div className="space-y-8">
             {!selectedFile ? (
-              <Dropzone onFileSelect={handleSingleFileSelect} />
+              <Dropzone multiple onFileSelect={(files) => {
+                if (files.length > 1) {
+                  handleBatchFileSelect(files);
+                  setActiveTab('batch');
+                } else handleSingleFileSelect(files);
+              }} />
             ) : (
               <div className="space-y-6">
                 <div className="app-panel flex flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
@@ -638,20 +1221,20 @@ export const App: React.FC = () => {
                     <img
                       src={originalUrl}
                       alt={`Preview of ${selectedFile.name}`}
-                      className="h-12 w-12 shrink-0 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
+                      className="h-12 w-12 shrink-0 rounded-xl border border-stone-300/80 object-cover dark:border-slate-700"
                     />
                     <div className="min-w-0">
-                      <h4 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                      <h4 className="truncate text-sm font-bold text-stone-900 dark:text-slate-100">
                         {selectedFile.name}
                       </h4>
-                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+                      <p className="mt-0.5 text-xs text-stone-600 dark:text-slate-400">
                         {(selectedFile.size / 1024).toFixed(1)} KB • {dimensions.width} x {dimensions.height} px
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={resetSingleFileState}
-                    className="min-h-11 shrink-0 self-start rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100 sm:self-auto dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/70"
+                    className="min-h-11 shrink-0 self-start rounded-xl border border-rose-300/80 bg-rose-100/60 px-4 py-2 text-xs font-bold text-rose-800 transition-colors hover:bg-rose-100 sm:self-auto dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/70"
                   >
                     Change File
                   </button>
@@ -663,7 +1246,7 @@ export const App: React.FC = () => {
                 />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-1">
+                  <div className="lg:col-span-1 order-2 lg:order-1">
                     <ControlPanel
                       mode={tracingMode}
                       setMode={setTracingMode}
@@ -674,7 +1257,7 @@ export const App: React.FC = () => {
                     />
                   </div>
 
-                  <div className="lg:col-span-2 space-y-6">
+                  <div className="lg:col-span-2 space-y-6 order-1 lg:order-2">
                     {isProcessing ? (
                       <div
                         className="app-panel flex min-h-72 flex-col items-center justify-center rounded-2xl sm:min-h-[400px]"
@@ -701,6 +1284,7 @@ export const App: React.FC = () => {
                     )}
 
                     <CodeInspector
+                      sourceSize={selectedFile.size}
                       svgContent={optimizedSvg || rawSvg}
                       optOptions={optOpts}
                       setOptOptions={setOptOpts}
@@ -708,6 +1292,10 @@ export const App: React.FC = () => {
                       onDownloadPng={downloadPngFile}
                       onDownloadWebp={downloadWebpFile}
                       isExporting={isExporting}
+                      isProcessing={isProcessing || isOptimizationPending}
+                      exportBaseName={selectedFile?.name.replace(/\.[^/.]+$/, '') || 'vector'}
+                      exportWidth={dimensions.width}
+                      exportHeight={dimensions.height}
                     />
                   </div>
                 </div>
@@ -716,16 +1304,20 @@ export const App: React.FC = () => {
           </div>
         ) : activeTab === 'batch' ? (
           <div className="space-y-6">
-            <Dropzone onFileSelect={handleBatchFileSelect} multiple={true} />
+            <Dropzone onFileSelect={handleBatchFileSelect} multiple={true} disabled={isBatchProcessing} compact={batchItems.length > 0} />
 
             {batchItems.length > 0 && (
               <>
-                <section aria-labelledby="batch-settings-heading" className="space-y-5 rounded-2xl border border-slate-200/80 bg-white/80 p-4 text-slate-900 shadow-xl backdrop-blur-md sm:p-5 dark:border-slate-800 dark:bg-slate-900/80 dark:text-white">
+                <section aria-labelledby="batch-settings-heading" className="app-panel space-y-5 rounded-2xl p-4 text-stone-900 sm:p-5 dark:text-white">
                   <div>
-                    <h2 id="batch-settings-heading" className="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">Batch settings</h2>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Choose a preset or tune the shared tracing controls before processing the queue.</p>
+                    <h2 id="batch-settings-heading" className="text-sm font-bold uppercase tracking-wider text-stone-900 dark:text-white">Batch settings</h2>
+                    <p className="mt-1 text-xs text-stone-600 dark:text-slate-400">Choose a preset or tune the shared tracing controls before processing the queue.</p>
                   </div>
-                  <PresetSelector selectedPreset={selectedPreset} onSelectPreset={handlePresetSelect} />
+                  <PresetSelector
+                    selectedPreset={selectedPreset}
+                    onSelectPreset={handlePresetSelect}
+                    disabled={isBatchProcessing}
+                  />
                   <ControlPanel
                     mode={tracingMode}
                     setMode={setTracingMode}
@@ -733,6 +1325,7 @@ export const App: React.FC = () => {
                     setMonoOpts={setMonoOpts}
                     colorOpts={colorOpts}
                     setColorOpts={setColorOpts}
+                    disabled={isBatchProcessing}
                   />
                 </section>
                 <BatchQueue
@@ -742,16 +1335,20 @@ export const App: React.FC = () => {
                   onStartBatch={startBatchProcess}
                   onExportZip={exportBatchZipFiles}
                   isProcessing={isBatchProcessing}
+                  isStopping={isBatchStopping}
+                  onStop={stopBatchProcess}
+                  onDownloadItem={downloadBatchItem}
                 />
               </>
             )}
           </div>
         ) : (
-          <div className="space-y-6">
-            <UniversalDropzone onFilesAdded={handleUniversalFilesAdded} />
+          <div className="space-y-8">
+            <UniversalDropzone onFilesAdded={handleUniversalFilesAdded} disabled={isUniversalProcessing} compact={universalItems.length > 0} />
 
             {universalItems.length > 0 && (
               <UniversalQueue
+                onImageOptionsChange={handleImageOptionsChange}
                 items={universalItems}
                 onTargetFormatChange={handleUniversalTargetChange}
                 onApplyAllTargetFormat={handleUniversalApplyAllTarget}
@@ -760,15 +1357,67 @@ export const App: React.FC = () => {
                 onStartConversion={startUniversalConversion}
                 onDownloadItem={downloadUniversalItem}
                 onExportZip={exportUniversalZip}
+                onOpenInStudio={(task) => {
+                  handleSingleFileSelect([task.file]);
+                  setActiveTab('single');
+                }}
+                onPageNumberChange={handleUniversalPageChange}
+                onClearCompleted={handleClearCompletedUniversal}
+                onRetryFailed={handleRetryFailedUniversal}
                 isProcessing={isUniversalProcessing}
+                isStopping={isUniversalStopping}
+                onStop={stopUniversalConversion}
               />
             )}
+
+            {universalItems.length === 0 && <details className="workspace-about"><summary>What can I do with AnyFormat?</summary><section aria-label="Converter Features" className="grid grid-cols-1 gap-5 pt-2 md:grid-cols-3">
+              <div className="app-panel rounded-2xl p-6 transition-all">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
+                  Your Files Stay Local
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
+                  Your images and documents are processed on your device. No source files are uploaded to a conversion server.
+                </p>
+              </div>
+
+              <div className="app-panel rounded-2xl p-6 transition-all">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                  <Cpu className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
+                  Built for Browser Workflows
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
+                  Browser tools handle conversion, while a background worker helps with image tracing. Work with one file or a batch and download completed results.
+                </p>
+              </div>
+
+              <div className="app-panel rounded-2xl p-6 transition-all">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
+                  <Layers className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
+                  Refine Your SVG
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
+                  Open an image in Vector Studio to adjust colors and detail, compare it with the original, and inspect or copy the SVG code.
+                </p>
+              </div>
+            </section></details>}
           </div>
         )}
       </main>
       <div className="relative z-10">
         <Footer />
       </div>
+
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
     </div>
   );
 };

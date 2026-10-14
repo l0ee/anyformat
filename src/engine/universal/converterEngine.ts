@@ -1,17 +1,28 @@
 import { traceWorkerClient } from '../../workers/traceWorkerClient';
 import { optimizeSvg } from '../svgOptimizer';
 import { rasterizeSvgToBlob } from '../svgRasterizer';
-import { getFileExtension, isSupportedConversion, SUPPORTED_FORMATS } from './types';
+import { convertImageToPdf, convertPdfToImage, convertPdfToSvg, convertSvgToPdf } from '../pdfConverter';
+import { ConversionOptions, ConversionStage, ImageExportOptions, ImageOutputMetadata, getFileExtension, isSupportedConversion, SUPPORTED_FORMATS } from './types';
+import { calculateOutputDimensions, getImageExportErrors } from './imageTransform';
+import { assertImageDecodeDimensions, assertRasterDecodeBudget } from '../../utils/imageDecodeLimits';
 
 /**
  * Universal File Converter Engine
- * Performs supported image and SVG conversions with browser APIs.
+ * Performs supported image, SVG, and PDF conversions with browser APIs.
  */
 export async function convertUniversalFile(
   file: File,
   targetExt: string,
-  onProgress?: (percent: number) => void
-): Promise<{ blob: Blob; mimeType: string; filename: string }> {
+  onProgress?: (percent: number) => void,
+  options?: ConversionOptions
+): Promise<{ blob: Blob; mimeType: string; filename: string; imageOutput?: ImageOutputMetadata }> {
+  const signal = options?.signal;
+  const stage = (message: ConversionStage) => {
+    signal?.throwIfAborted();
+    options?.onStage?.(message);
+    signal?.throwIfAborted();
+  };
+  signal?.throwIfAborted();
   const baseName = file.name.replace(/\.[^/.]+$/, '');
   const sourceExt = getFileExtension(file.name);
   const targetLower = targetExt.toLowerCase();
@@ -25,27 +36,72 @@ export async function convertUniversalFile(
   }
 
   onProgress?.(20);
+  stage('Reading file…');
 
-  // 1. Convert SVG input to raster (PNG / JPG / WEBP).
+  // 1. Exporting to PDF (Image / SVG -> PDF)
+  if (targetLower === 'pdf') {
+    stage('Preparing PDF…');
+    onProgress?.(50);
+    let blob: Blob;
+    if (sourceExt === 'svg' || file.type === 'image/svg+xml') {
+      const svgText = await file.text();
+      signal?.throwIfAborted();
+      blob = await convertSvgToPdf(svgText);
+    } else {
+      blob = await convertImageToPdf(file);
+    }
+    stage('Preparing download…');
+    onProgress?.(100);
+    return { blob, mimeType: 'application/pdf', filename: `${baseName}.pdf` };
+  }
+
+  // 2. Exporting from PDF (PDF -> Image / SVG)
+  if (sourceExt === 'pdf') {
+    stage('Rendering PDF page…');
+    onProgress?.(50);
+    let blob: Blob;
+    let mimeType: string;
+    const pageNum = options?.pageNumber && options.pageNumber > 0 ? options.pageNumber : 1;
+
+    if (targetLower === 'svg') {
+      blob = await convertPdfToSvg(file, pageNum, { signal, onStage: stage });
+      mimeType = 'image/svg+xml';
+    } else {
+      blob = await convertPdfToImage(file, targetLower, pageNum);
+      mimeType = targetLower === 'jpg' || targetLower === 'jpeg' ? 'image/jpeg' : `image/${targetLower}`;
+    }
+
+    stage('Preparing download…');
+    onProgress?.(100);
+    const outName = pageNum > 1 ? `${baseName}_p${pageNum}.${targetLower}` : `${baseName}.${targetLower}`;
+    return { blob, mimeType, filename: outName };
+  }
+
+  // 3. Convert SVG input to raster (PNG / JPG / WEBP).
   if (sourceExt === 'svg' || file.type === 'image/svg+xml') {
+    stage('Rendering SVG…');
     const svgText = await file.text();
+    signal?.throwIfAborted();
     const format = targetLower === 'jpg' ? 'jpeg' : (targetLower as 'png' | 'jpeg' | 'webp');
     const blob = await rasterizeSvgToBlob(svgText, { scale: 2, format });
+    stage('Preparing download…');
     onProgress?.(100);
     return { blob, mimeType: `image/${format}`, filename: `${baseName}.${targetLower}` };
   }
 
-  // 2. Convert raster input to SVG with the custom tracing worker
+  // 4. Convert raster input to SVG with the custom tracing worker
   if (targetLower === 'svg') {
+    stage('Tracing shapes…');
     onProgress?.(40);
     const traceResult = await traceWorkerClient.traceColor(file, {
       numberOfColors: 8,
-      quantization: 'median-cut',
+      quantization: 'kmeans',
       turdSize: 2,
       alphaMax: 1.0,
       blurRadius: 0,
       maxResolution: 1024,
-    });
+    }, signal);
+    stage('Preparing download…');
     onProgress?.(80);
     const optResult = optimizeSvg(traceResult.svg, {
       precision: 2,
@@ -58,21 +114,17 @@ export async function convertUniversalFile(
     return { blob, mimeType: 'image/svg+xml', filename: `${baseName}.svg` };
   }
 
-  // 3. Standard raster-to-raster conversion (PNG / JPG / WEBP) via Canvas.
+  // 5. Standard raster-to-raster conversion (PNG / JPG / WEBP) via Canvas.
+  stage('Reading image…');
   onProgress?.(50);
-  const blob = await convertRasterViaCanvas(file, targetLower);
+  const { blob, imageOutput } = await convertRasterViaCanvas(file, targetLower, options?.image, signal, () => stage('Preparing download…'));
+  signal?.throwIfAborted();
   onProgress?.(100);
-
-  const mimeMap: Record<string, string> = {
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    webp: 'image/webp',
-  };
 
   return {
     blob,
-    mimeType: mimeMap[targetLower] || 'image/png',
+    imageOutput,
+    mimeType: SUPPORTED_FORMATS[targetLower].mime,
     filename: `${baseName}.${targetLower}`,
   };
 }
@@ -80,52 +132,65 @@ export async function convertUniversalFile(
 /**
  * Standard HTML5 Canvas Raster Converter
  */
-function convertRasterViaCanvas(file: File, targetExt: string): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
+async function convertRasterViaCanvas(
+  file: File,
+  targetExt: string,
+  options: ImageExportOptions = {},
+  signal?: AbortSignal,
+  onEncode?: () => void
+): Promise<{ blob: Blob; imageOutput: ImageOutputMetadata }> {
+  const settingsError = Object.values(getImageExportErrors(options))[0];
+  if (settingsError) throw new Error(settingsError);
+  await assertRasterDecodeBudget(file);
+  signal?.throwIfAborted();
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  let canvas: HTMLCanvasElement | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Failed to load image file'));
+      img.src = url;
+    });
+    signal?.throwIfAborted();
+    const sourceWidth = img.naturalWidth || img.width;
+    const sourceHeight = img.naturalHeight || img.height;
+    assertImageDecodeDimensions(sourceWidth, sourceHeight);
+    const imageOutput = calculateOutputDimensions(sourceWidth, sourceHeight, options);
+    const { width, height } = imageOutput;
 
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
+    canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context unavailable');
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas 2D context unavailable'));
-        return;
-      }
+    // JPEG has no alpha channel; flatten transparency onto the selected color.
+    if (targetExt === 'jpg' || targetExt === 'jpeg') {
+      ctx.fillStyle = options.background ?? '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+    }
+    ctx.drawImage(img, 0, 0, width, height);
 
-      // Fill white background for JPEG if the source has transparency.
-      if (targetExt === 'jpg' || targetExt === 'jpeg') {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-
-      ctx.drawImage(img, 0, 0);
-
-      const mimeType = targetExt === 'jpg' || targetExt === 'jpeg' ? 'image/jpeg' : `image/${targetExt}`;
-      const quality = targetExt === 'jpg' || targetExt === 'jpeg' || targetExt === 'webp' ? 0.92 : undefined;
-
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error(`Failed to convert image to ${targetExt}`));
-          }
-        },
-        mimeType,
-        quality
-      );
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Failed to load image file'));
-    };
-
-    img.src = url;
-  });
+    const mimeType = SUPPORTED_FORMATS[targetExt].mime;
+    const quality = ['jpg', 'jpeg', 'webp'].includes(targetExt) ? (options.quality ?? 0.92) : undefined;
+    const outputCanvas = canvas;
+    onEncode?.();
+    const blob = await new Promise<Blob | null>((resolve) => outputCanvas.toBlob(resolve, mimeType, quality));
+    signal?.throwIfAborted();
+    if (!blob) throw new Error(`Failed to convert image to ${targetExt}`);
+    if (blob.type !== mimeType) {
+      throw new Error(`Browser returned ${blob.type} instead of requested ${mimeType}. WebP or requested format encoding may not be supported.`);
+    }
+    return { blob, imageOutput };
+  } finally {
+    img.onload = null;
+    img.onerror = null;
+    img.removeAttribute?.('src');
+    URL.revokeObjectURL(url);
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }
 }

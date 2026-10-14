@@ -21,9 +21,9 @@ export function optimizeSvg(
   const originalSize = new Blob([svgString]).size;
   let optimized = svgString;
 
-  // 1. Remove comments
+  // 1. Remove comments (preserving AnyFormat generator signature)
   if (removeComments) {
-    optimized = optimized.replace(/<!--[\s\S]*?-->/g, '');
+    optimized = optimized.replace(/<!--(?![\s]*Generator: AnyFormat)[\s\S]*?-->/g, '');
   }
 
   // 2. Remove XML declaration / DOCTYPE / metadata tag / titles / desc
@@ -61,7 +61,7 @@ export function optimizeSvg(
 
   // 4. Convert hex colors (e.g. #ff0000 -> #f00)
   if (convertColors) {
-    optimized = optimized.replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3/g, '#$1$2$3');
+    optimized = optimized.replace(/#([0-9a-fA-F])\1([0-9a-fA-F])\2([0-9a-fA-F])\3(?![0-9a-fA-F])/g, '#$1$2$3');
   }
 
   // 5. Clean empty or redundant attributes

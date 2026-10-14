@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.e2e.ts',
   fullyParallel: true,
+  workers: process.env.CI ? 2 : 4,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',
@@ -17,7 +18,7 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
-    command: 'VITE_SITE_URL=http://127.0.0.1:4174/ npm run build && PORT=4174 node start-server.js',
+    command: 'cross-env VITE_SITE_URL=http://127.0.0.1:4174/ npm run build && cross-env PORT=4174 node start-server.js',
     url: 'http://127.0.0.1:4174',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
