@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to SVG Converter & Vectorizer.
+Thanks for contributing to AnyFormat.
 
 ## Development flow
 
@@ -22,8 +22,22 @@ npx playwright install chromium firefox webkit
 
 On Debian or Ubuntu, use `npx playwright install --with-deps chromium firefox webkit` when the host is missing browser system libraries.
 
+For a verified user-owned WebKit library setup on Nobara/Fedora, see [docs/webkit-on-fedora.md](docs/webkit-on-fedora.md). Mobile sharing tests use mocked native APIs; physical-device checks are recorded in [docs/mobile-saving-and-sharing.md](docs/mobile-saving-and-sharing.md).
+
 Conversion-format claims must match `src/engine/universal/types.ts`. Do not advertise a decoder, encoder, upload limit, privacy guarantee, or third-party engine unless it is implemented and verified.
 
 ## Commit scope
 
 Keep commits focused and use clear imperative subjects, for example `Fix universal target intersection` or `Improve batch queue status semantics`.
+
+## Local files and publication
+
+Keep environment files, logs, build output, browser reports, coverage, crash dumps, and archived artwork out of commits. Reviewed `.env.example` files may document public build settings, but must not contain credentials. Browser builds may expose `VITE_` variables.
+
+Personal agent setup, downloaded skills, and session data belong in your local Git `info/exclude`; they are not required to build AnyFormat. Shared project instructions in `AGENTS.md` remain part of the repository. Keep private notes out of public documentation and avoid machine-specific file links.
+
+Only assets used by the website belong in `public/`, because Vite copies that directory into deployments. Archive old designs in ignored `design-assets/` or `local-experiments/` directories. See [the audit summary](docs/audit-summary.md) for maintained safeguards and checks.
+
+## Optional high-resolution checks
+
+Run `npm run test:stress` to verify monochrome and color tracing of a synthetic 4K image. This deliberately allocates larger image buffers and is separate from the routine test suite. It is regression coverage, not a performance benchmark or a guarantee for every device.
