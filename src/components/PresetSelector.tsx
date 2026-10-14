@@ -35,7 +35,7 @@ export const PresetSelector: React.FC<PresetSelectorProps> = ({
   disabled = false,
 }) => {
   return (
-    <fieldset disabled={disabled} className={`space-y-3 font-['Plus_Jakarta_Sans',sans-serif] ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
+    <fieldset disabled={disabled} className={`studio-presets space-y-3 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
       <legend className="block text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-400">
         Start with a style
       </legend>
@@ -64,8 +64,8 @@ export const PresetSelector: React.FC<PresetSelectorProps> = ({
               <span className="mb-2 block text-pink-500" aria-hidden="true">
                 <IconComponent className="w-5 h-5" />
               </span>
-              <span className="block text-xs font-bold tracking-wider uppercase text-stone-900 dark:text-white">{p.label}</span>
-              <span className="block text-[10px] text-stone-600 dark:text-slate-400 leading-tight mt-1 line-clamp-2">
+              <span className="block text-sm font-bold text-stone-900 dark:text-white">{p.label}</span>
+              <span className="block text-xs text-stone-600 dark:text-slate-400 leading-relaxed mt-1">
                 {p.desc}
               </span>
               </span>

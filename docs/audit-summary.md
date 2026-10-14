@@ -6,7 +6,7 @@ This document records verified safeguards and repository boundaries. It is not a
 
 | Area | Safeguard | Maintained evidence |
 | --- | --- | --- |
-| Production server | Rejects invalid request paths, handles range requests, and applies security headers. | `test/start-server.test.js` |
+| Production server | Rejects invalid request paths and canonical-root escapes, bounds compression work, handles range requests, and applies security headers. | `tests/server/start-server.test.js` |
 | ZIP exports | Flattens and normalizes entry names, preserving all outputs through case-insensitive collisions. | `src/engine/zipExporter.test.ts` and `tests/e2e/zip-export.e2e.ts` |
 | SVG processing | Uses image-context previews, validates canvas dimensions, and releases export resources on success and failure. | Rasterizer unit tests and SVG preview security browser tests |
 | Raster memory | Checks recognized headers before previews/decoding and validates decoded and output dimensions. | `imageDecodeLimits.ts`, converter unit tests, and image-preflight browser tests |

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { HeroHeader } from './components/HeroHeader';
+import { LandingFeatures } from './components/LandingFeatures';
 import { Dropzone } from './components/Dropzone';
 import { PresetSelector } from './components/PresetSelector';
 import { ControlPanel } from './components/ControlPanel';
@@ -14,7 +15,7 @@ import { UniversalDropzone } from './components/universal/UniversalDropzone';
 import { UniversalQueue } from './components/universal/UniversalQueue';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { getClipboardImages } from './components/clipboardPaste';
-import { ShieldCheck, Cpu, Layers, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 import { convertUniversalFile } from './engine/universal/converterEngine';
 import {
@@ -1148,6 +1149,8 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('paste', handleWindowPaste);
   }, [activeTab, isBatchProcessing, isUniversalProcessing]);
 
+  const hasActiveFiles = activeTab === 'single' ? Boolean(selectedFile) : activeTab === 'batch' ? batchItems.length > 0 : universalItems.length > 0;
+
   return (
     <div className="app-shell relative isolate min-h-screen overflow-x-clip text-stone-900 transition-colors dark:text-white">
       <a href="#main-content" className="skip-link">
@@ -1194,7 +1197,7 @@ export const App: React.FC = () => {
         tabIndex={-1}
         className="app-main relative mx-auto max-w-7xl space-y-6 px-3 pb-8 pt-6 sm:space-y-8 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8"
       >
-        <HeroHeader activeTab={activeTab} compact={activeTab === 'single' ? Boolean(selectedFile) : activeTab === 'batch' ? batchItems.length > 0 : universalItems.length > 0} />
+        <HeroHeader activeTab={activeTab} compact={hasActiveFiles} />
 
         {activeTab !== 'universal' && (
           <div className="svg-workspace-options">
@@ -1369,46 +1372,13 @@ export const App: React.FC = () => {
                 onStop={stopUniversalConversion}
               />
             )}
-
-            {universalItems.length === 0 && <details className="workspace-about"><summary>What can I do with AnyFormat?</summary><section aria-label="Converter Features" className="grid grid-cols-1 gap-5 pt-2 md:grid-cols-3">
-              <div className="app-panel rounded-2xl p-6 transition-all">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400">
-                  <ShieldCheck className="h-6 w-6" />
-                </div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
-                  Your Files Stay Local
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
-                  Your images and documents are processed on your device. No source files are uploaded to a conversion server.
-                </p>
-              </div>
-
-              <div className="app-panel rounded-2xl p-6 transition-all">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
-                  <Cpu className="h-6 w-6" />
-                </div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
-                  Built for Browser Workflows
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
-                  Browser tools handle conversion, while a background worker helps with image tracing. Work with one file or a batch and download completed results.
-                </p>
-              </div>
-
-              <div className="app-panel rounded-2xl p-6 transition-all">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
-                  <Layers className="h-6 w-6" />
-                </div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100">
-                  Refine Your SVG
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-slate-400">
-                  Open an image in Vector Studio to adjust colors and detail, compare it with the original, and inspect or copy the SVG code.
-                </p>
-              </div>
-            </section></details>}
           </div>
         )}
+        {!hasActiveFiles && <LandingFeatures onSelectMode={(mode) => {
+          setActiveTab(mode);
+          document.getElementById('main-content')?.focus({ preventScroll: true });
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        }} />}
       </main>
       <div className="relative z-10">
         <Footer />

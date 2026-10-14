@@ -29,9 +29,9 @@ test('preserves sibling gaps, hidden children, nested typography and workspace p
   await expect(fixture.locator('[data-fixture="type"] span')).toHaveCSS('line-height', '16px');
   await expect(fixture.locator('fieldset')).toHaveCSS('padding', '20px');
   const button = fixture.getByRole('button', { name: 'Action', exact: true });
-  await expect(button).toHaveCSS('border-radius', '8px');
+  await expect(button).toHaveCSS('border-radius', '10px');
   await expect(button).toHaveCSS('background-image', 'none');
-  await expect(button).toHaveCSS('background-color', 'rgb(225, 29, 72)');
+  await expect(button).toHaveCSS('background-color', 'rgb(214, 45, 82)');
   await button.hover();
   expect(await button.evaluate((element) => {
     const style = getComputedStyle(element);

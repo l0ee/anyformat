@@ -52,7 +52,7 @@ export const CodeInspector: React.FC<CodeInspectorProps> = ({
   const formattedSize = (resultBytes / 1024).toFixed(2);
 
   return (
-    <section aria-labelledby={headingId} className="app-panel rounded-2xl text-stone-900 dark:text-white p-5 space-y-4 font-['Plus_Jakarta_Sans',sans-serif]">
+    <section aria-labelledby={headingId} className="app-panel studio-export rounded-2xl text-stone-900 dark:text-white p-5 space-y-4">
       {/* Header Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200/80 dark:border-slate-800 pb-4">
         <div>

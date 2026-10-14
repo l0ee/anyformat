@@ -29,10 +29,10 @@ export const BatchQueue: React.FC<BatchQueueProps> = ({ items, onRemoveItem, onC
   const zipHelpId = useId();
 
   return (
-    <section aria-labelledby={headingId} className="app-panel space-y-4 rounded-2xl p-4 text-stone-900 shadow-xl sm:p-5 dark:text-white">
+    <section aria-labelledby={headingId} className="app-panel batch-queue space-y-4 rounded-2xl p-4 text-stone-900 sm:p-5 dark:text-white">
       <div className="flex flex-col gap-3 border-b border-stone-200/80 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
         <div>
-          <h3 id={headingId} className="text-sm font-serif uppercase tracking-wider">Batch queue ({items.length} files)</h3>
+          <h3 id={headingId} className="text-lg font-bold tracking-tight">Batch queue ({items.length} files)</h3>
           <p id={statusId} role="status" aria-live="polite" aria-atomic="true" className="text-xs text-stone-600 dark:text-slate-400">
             {idleCount} ready · {processingCount} processing · {completedCount} completed · {errorCount} failed
           </p>

@@ -59,6 +59,7 @@ test('SVG batch offers individual downloads and can stop a running trace', async
   const firstDownload = page.getByRole('button', { name: 'Download first.svg', exact: true });
   await expect(firstDownload).toBeVisible();
   await expect(page.getByRole('progressbar', { name: 'Processing second.png' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Export 1 as ZIP' })).toBeVisible();
   const downloaded = page.waitForEvent('download');
   await firstDownload.click();
   expect((await downloaded).suggestedFilename()).toBe('first.svg');
@@ -71,11 +72,11 @@ test('SVG batch offers individual downloads and can stop a running trace', async
 });
 
 test('drag acknowledgement, comparison hint, result summary, and repo attribution work together', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  const credit = page.getByRole('link', { name: 'by l0ee', exact: true });
+  const credit = page.getByRole('link', { name: 'Created by l0ee — view AnyFormat repository', exact: true });
   await expect(credit).toHaveAttribute('href', 'https://github.com/l0ee/anyformat');
   await expect(credit).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
   const surface = page.locator('.file-upload-surface');
   await surface.dispatchEvent('dragover');
   await expect(page.getByRole('heading', { name: 'Drop to add files' })).toBeVisible();

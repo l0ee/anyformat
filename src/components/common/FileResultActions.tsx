@@ -46,7 +46,7 @@ export function FileResultActions({ blob, filename, disabled = false, onDownload
     <div className="flex flex-wrap gap-2">
       <button type="button" onClick={onDownload} disabled={disabled}
         aria-label={photo && platform === 'android' ? `Save image ${filename}` : `Download ${filename}`}
-        className={buttonClass}>
+        className={`${buttonClass} file-result-download`}>
         <Download aria-hidden="true" className="h-4 w-4" />{downloadLabel}
       </button>
       {shareable && <button type="button" onClick={handleShare} disabled={disabled || sharing}

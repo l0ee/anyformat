@@ -51,12 +51,12 @@ async function canvasFiles(page: Page) {
   ];
 }
 
-test('renders the primary workflows without horizontal overflow', async ({ page }) => {
+test('renders the primary workflows without horizontal overflow', async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
 
   await expect(page).toHaveTitle('AnyFormat — Image & PDF Converter with SVG Tools');
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /http:\/\/(127\.0\.0\.1:4174|localhost:5173)\//);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', new URL('/', baseURL).href);
   await expect(page.getByText('AnyFormat', { exact: true })).toBeVisible();
   await expect(page.getByText(/© \d{4} l0ee\./)).toBeVisible();
   await expect(page.getByRole('link', { name: /View AnyFormat on GitHub/ })).toHaveAttribute('href', 'https://github.com/l0ee/anyformat');

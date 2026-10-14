@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { PDFDocument, StandardFonts, drawObject, popGraphicsState, pushGraphicsState, scale, translate } from 'pdf-lib';
 
 for (const policyMode of ['header-and-html', 'html-only'] as const) {
-  test(`renders PDF fonts, JPEG and JPEG2000 under ${policyMode} production CSP`, async ({ page }) => {
+  test(`renders PDF fonts, JPEG and JPEG2000 under ${policyMode} production CSP`, async ({ page, baseURL }) => {
     test.setTimeout(90_000);
     const diagnostics: string[] = [];
     page.on('console', (message) => {
@@ -13,7 +13,7 @@ for (const policyMode of ['header-and-html', 'html-only'] as const) {
     });
     if (policyMode === 'html-only') {
       // Simulate a static host without the optional Node server's CSP header.
-      await page.route('http://127.0.0.1:4174/**', async (route) => {
+      await page.route(`${new URL('/', baseURL).href}**`, async (route) => {
         const response = await route.fetch();
         const headers = response.headers();
         delete headers['content-security-policy'];
