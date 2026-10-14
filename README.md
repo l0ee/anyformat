@@ -1,84 +1,35 @@
-# AnyFormat 2.2
+# AnyFormat
 
-**Image and PDF conversion. SVG tools. All in your browser.**
+AnyFormat converts images in batches, traces images into SVGs, and exports selected PDF pages in your browser.
+
+[Open AnyFormat](https://l0ee.github.io/anyformat/) · [Report an issue](https://github.com/l0ee/anyformat/issues)
 
 [![CI](https://github.com/l0ee/anyformat/actions/workflows/ci.yml/badge.svg)](https://github.com/l0ee/anyformat/actions/workflows/ci.yml)
 
-AnyFormat helps you change image formats, turn pictures into SVG graphics, and export individual PDF pages. Preview your results, adjust the settings, and download one file or a batch. Your files are processed on your device and are never uploaded to a conversion server.
+![AnyFormat Vector Studio showing tracing settings and a comparison of the original image with its traced SVG](docs/images/vector-studio.png)
 
-[Open AnyFormat](https://l0ee.github.io/anyformat/) · [Report a problem](https://github.com/l0ee/anyformat/issues) · [Contribute](CONTRIBUTING.md)
+## Workspaces
 
-## At a glance
-
-| Area | Approach |
+| Workspace | What it does |
 | --- | --- |
-| Interface | React and TypeScript, with responsive layouts and preview-driven workflows |
-| Processing | Browser Canvas for raster operations and Web Workers for background tracing |
-| PDFs and exports | PDF.js, pdf-lib, and ZIP downloads for completed batches |
-| Data handling | Local file processing without a file-upload backend |
-| Development | Documented type checks, linting, unit tests, and Playwright browser tests |
+| Convert files | Convert images, SVG files, and selected PDF pages. Choose an output for each file, preview results, and download individual files or a batch ZIP. |
+| Create SVG | Trace one image in Vector Studio or add several to Vector Batch. Adjust colors and detail, compare the result with the original, and inspect or copy the SVG source. Batch images use shared styles and tracing settings. |
 
-Start with the [live application](https://l0ee.github.io/anyformat/), or jump to [local setup](#run-locally) to explore the code.
+For raster inputs, PNG, JPEG, and WebP exports support resizing, including same-format exports. JPEG and WebP also have quality controls; JPEG exports let you choose a background for transparent images.
 
-## What's new in 2.2
-
-- Resize PNG, JPEG, and WebP exports, adjust JPEG/WebP quality, and choose a background for transparent images exported as JPEG. Same-format exports apply these settings too.
-- Prepare a Studio image for a separate save/share tap, or share a completed conversion through your device's native menu when supported. See [mobile saving and sharing](docs/mobile-saving-and-sharing.md) for platform behavior and device-test scope.
-- Process SVG batches with bounded parallel tracing and keep the latest cleanup settings in exported files.
-- Safer ZIP names, early image-size checks, and more reliable PDF rendering under production security policies, including WebKit.
-- Tailwind CSS 4 styling with the existing layout, themes, and accessibility controls preserved.
-
-## Retained from 2.1
-
-- **Know what's happening:** conversion stages such as Reading image, Rendering PDF page, and Tracing shapes, plus a count of finished files.
-- **Stop and resume:** stop either queue without losing completed results, then resume the files still marked Ready. Some canvas/PDF operations finish their current browser step before stopping safely.
-- **Download as files finish:** save an individual SVG from a batch or export completed results as a ZIP without waiting for every file.
-- **Compare your result:** original and output sizes show whether the SVG is smaller or larger. A size change does not guarantee equivalent image quality.
-- **More responsive interactions:** the upload area acknowledges dragged files, the comparison handle explains how to use it, and selected styles provide subtle feedback.
-
-The creator link beside the logo opens [the AnyFormat repository](https://github.com/l0ee/anyformat). All motion still respects reduced-motion preferences.
-
-## What's new in Version 2
-
-Version 2 puts the file tools first: a cleaner layout, two main modes, and fewer settings to work through. The upload area includes a small pixel-to-vector motion graphic that you can pause. It also respects your device's reduced-motion setting.
-
-- **Convert files** for image formats and selected PDF pages.
-- **Create SVG** for a single image or a batch, with automatic batch routing when you add several images.
-- **Simpler settings:** start with a style and expand advanced controls when you need them.
-- **Mobile-friendly workflows:** the upload action is visible on the first screen, previews appear before settings, and downloads remain easy to find.
-
-See [CHANGELOG.md](CHANGELOG.md) for the release history. No installation or account is required to use the website on a desktop or phone.
-
-## Choose the right workspace
-
-| Workspace | What you can do |
-| --- | --- |
-| **Convert files** | Convert supported images, SVG files, and PDF pages. Choose an output for each file, preview results, and download completed files. |
-| **Create SVG** | Turn a picture into an SVG: a graphic made from shapes and curves that can scale without losing sharpness. Adjust colors and detail, then compare the result with the original. Add several images to use shared batch settings and export a ZIP. |
-
-![Vector Studio tracing settings and before-and-after image comparison](docs/images/vector-studio.png)
+Vector Studio supports black-and-white and color tracing, palette editing, fullscreen comparison, and SVG cleanup. You can download the SVG or export the traced result as PNG or WebP at different sizes. The interface has keyboard shortcuts, light and dark themes, and reduced-motion support.
 
 ## How to use it
 
-1. **Add your files.** Choose files, drag them into the upload area, or paste a supported image from your clipboard.
-2. **Choose your output.** Pick a format in Convert files, or choose a style in Create SVG. For PDFs, choose the page you want to convert. Advanced SVG settings and source code are available in expandable sections.
-3. **Preview and download.** Check the result, download a file, or export completed batch results as a ZIP. Use Stop processing if you need to pause the queue; completed results stay available.
+1. Choose Convert files or Create SVG. Select files, drag them into the upload area, or paste a supported image from your clipboard.
+2. Choose an output format or tracing style. For PDFs, select the page to export. Expand the advanced controls if you need to adjust the result.
+3. Preview the output, then download individual files or completed batch results as a ZIP. Native sharing is available when your browser supports it; see [mobile saving and sharing](docs/mobile-saving-and-sharing.md) for platform limits and device-test status.
 
-## Features
-
-- **Image and PDF conversion:** work with PNG, JPEG, WebP, BMP, SVG, and PDF files using the supported paths below.
-- **Editable SVG output:** create black-and-white or color graphics, adjust the level of detail, and edit the color palette.
-- **Before-and-after previews:** compare the source with the result and use the fullscreen view for a closer look.
-- **SVG tools:** inspect or copy SVG code, remove unnecessary metadata, and simplify the output.
-- **Flexible exports:** download SVG files, export traced results as PNG or WebP at different sizes, or collect completed files in a ZIP.
-- **Batch workflows:** use shared tracing settings, choose formats per file, and retry failed conversions.
-- **Accessible controls:** keyboard shortcuts, labeled inputs, responsive layouts, and light and dark themes.
+Both queues can stop and resume without losing completed results. Some canvas and PDF operations finish their current browser step before stopping. Completed files remain available to download while the rest of the queue runs, and failed conversions can be retried.
 
 ## Supported formats
 
-### Convert files
-
-| Input | Available outputs |
+| Convert files input | Available outputs |
 | --- | --- |
 | PNG | JPEG, WebP, SVG, PDF, PNG |
 | JPEG | PNG, WebP, SVG, PDF, JPEG |
@@ -87,26 +38,25 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history. No installation or acc
 | SVG | PNG, JPEG, WebP, PDF |
 | PDF | PNG, JPEG, WebP, SVG |
 
-### Create SVG: single-image and batch workflows
+Vector Studio and Vector Batch accept PNG, JPEG, WebP, BMP, and GIF for tracing. Convert files does not support GIF. BMP is an input format only. Conversion paths are defined in [`src/engine/universal/types.ts`](src/engine/universal/types.ts).
 
-Create SVG accepts **PNG, JPEG, WebP, BMP, and GIF** images for tracing. GIF is not offered in Convert files.
+### Practical limits
 
-### What to expect
-
-- **PDF conversion works one selected page at a time.** PDF-to-SVG creates a traced version of the rendered page; it does not preserve the original text or vector objects.
-- **SVG tracing redraws a picture as shapes.** Simple logos and illustrations usually need less tuning than detailed photos. Results depend on your image and settings.
-- **Files are limited to 100 MB each.** Batch queues hold up to 100 files. Recognized raster headers exceeding 16,384 pixels per edge or 64 megapixels are rejected before decoding; output images may be reduced to fit the smaller canvas budget.
-- **Browser support can vary.** A format listed here may still depend on your browser's image decoder or encoder. Unsupported paths, including ICO conversion, are not offered.
-
-The supported-format definitions are maintained in [`src/engine/universal/types.ts`](src/engine/universal/types.ts).
+- PDF conversion exports one selected page at a time. PDF-to-SVG traces an image of that page; it does not preserve the original text or vector objects.
+- Tracing works best with simple logos and illustrations. Results depend on the source image and your settings; a smaller SVG file does not guarantee equivalent image quality.
+- Each file can be up to 100 MB, and each queue can hold up to 100 files.
+- Recognized raster headers exceeding 16,384 pixels per edge or 64 megapixels are rejected before decoding. Unknown header layouts fall back to the browser decoder. Output canvases have a smaller budget, so exports may be reduced in size. These checks do not bound the total memory used by a queue.
+- Format support depends on your browser's codecs. Tailwind CSS 4 requires Safari 16.4+, Chrome 111+, or Firefox 128+. Features such as native file sharing depend on browser support.
 
 ## Privacy
 
-Image processing and conversion run locally in your browser. AnyFormat has no file-upload backend, and it does not send your source files to a conversion service. The website still loads its application files and fonts when you open it.
+Image processing and conversion run locally in your browser. AnyFormat has no file-upload backend and does not send source files to a conversion service. The site still makes network requests to load application assets and Google Fonts.
+
+See [SECURITY.md](SECURITY.md) for rendering boundaries, memory checks, and deployment security policies. SVG cleanup is not a security sanitizer; treat exported SVGs as active content if you embed them elsewhere.
 
 ## Run locally
 
-Use **Node.js 22** and **npm 10**, as specified in `package.json`.
+Use Node.js 22 (22.12 or later) and npm 10, as specified in `package.json`.
 
 ```bash
 git clone https://github.com/l0ee/anyformat.git
@@ -115,67 +65,42 @@ npm ci
 npm run dev
 ```
 
-Open the local address printed by Vite.
+Open the local address printed by Vite. The interface uses React 19 and TypeScript, with Vite 8 and Tailwind CSS 4. Browser Canvas and Web Workers handle image processing and tracing; PDF.js and pdf-lib handle PDFs, and JSZip creates batch downloads.
 
-### Build and serve
+## Checks
+
+Run the validation suite:
+
+```bash
+npm run typecheck && npm run lint && npm test
+```
+
+For Chromium browser tests:
+
+```bash
+npx playwright install chromium
+npx playwright test --project=chromium
+```
+
+The full browser suite, `npm run test:e2e`, runs Chromium, Firefox, and WebKit. Install them first with `npx playwright install chromium firefox webkit`. On Debian or Ubuntu, add `--with-deps` if browser system libraries are missing. For Nobara/Fedora, see the [rootless WebKit setup](docs/webkit-on-fedora.md).
+
+Unit tests live alongside the source files and scripts they cover; browser tests are in `tests/e2e`. The optional `npm run test:stress` checks synthetic 4K tracing with larger image buffers. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and [the audit summary](docs/audit-summary.md) for test scope.
+
+## Build and deploy
 
 ```bash
 npm run build
 npm start
 ```
 
-The production build is written to `dist`. The included server runs at **http://localhost:8080** by default.
+The build writes to `dist`. The included Node server serves it at `http://localhost:8080` by default, with compression, caching, range requests, and security headers.
 
-## Development and testing
+The public site runs on GitHub Pages. GitHub Actions validates changes and deploys successful builds from `main`. For another host, serve `dist` and set `VITE_SITE_URL` when building. Set `VITE_BASE_PATH` if you deploy under a subdirectory.
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the development server. |
-| `npm run typecheck` | Check TypeScript types. |
-| `npm run lint` | Check code style and common mistakes. |
-| `npm test` | Run unit tests. |
-| `npm run test:stress` | Run optional synthetic 4K tracing checks. |
-| `npm run test:e2e` | Run browser tests in Chromium, Firefox, and WebKit. |
-| `npm run build` | Create the production site. |
-
-Install the test browsers before running the browser suite:
-
-```bash
-npx playwright install chromium firefox webkit
-```
-
-On Debian or Ubuntu, add `--with-deps` if browser system libraries are missing. To run only Chromium, use `npx playwright test --project=chromium`.
-
-For Nobara/Fedora's WebKit library requirements, see [the verified local setup](docs/webkit-on-fedora.md).
-
-Tests cover conversion paths, tracing, file limits, previews, queue behavior, accessibility, and the production server. New formats should have verified conversion paths before they are advertised.
-
-The 4K stress checks are opt-in and use larger image buffers. See [CONTRIBUTING.md](CONTRIBUTING.md) and [the audit summary](docs/audit-summary.md) for test scope and publication boundaries.
-
-## Built with
-
-- **React 18 and TypeScript** for the interface and application logic.
-- **Vite 6 and Tailwind CSS 4** for development, builds, and styling.
-- **Browser Canvas and Web Workers** for image processing and background tracing.
-- **PDF.js and pdf-lib** for reading PDF pages and creating PDF files.
-- **JSZip** for batch downloads and **Lucide React** for interface icons.
-
-## Deployment
-
-The public site is hosted on [GitHub Pages](https://l0ee.github.io/anyformat/). GitHub Actions validates changes and deploys successful builds from `main`.
-
-For another host, serve the generated `dist` folder and set `VITE_SITE_URL` to your public site address when building. Set `VITE_BASE_PATH` if the app will live under a subdirectory. The included Node server also supports self-hosting, with compression, caching, range requests, and security headers.
-
-Website assets belong in `public`. Keep unused source artwork in the ignored `design-assets` directory.
-
-### Versioned releases
-
-The website updates when a validated change is merged into `main` and GitHub Pages deployment succeeds. GitHub releases record source versions separately, such as `v2.0.0` and `v2.1.0`. Creating a release alone does not deploy the website. The version displayed in the footer comes from `package.json`.
+Website assets belong in `public`; keep unused source artwork in the ignored `design-assets` directory. GitHub releases record source versions separately from website deployments. See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Contributing and support
 
-Have an idea or found a problem? [Open an issue](https://github.com/l0ee/anyformat/issues). For code changes, create a focused branch and follow [CONTRIBUTING.md](CONTRIBUTING.md). See [SECURITY.md](SECURITY.md) for security reports.
+For bugs and feature requests, [open an issue](https://github.com/l0ee/anyformat/issues). Follow [CONTRIBUTING.md](CONTRIBUTING.md) for code changes and [SECURITY.md](SECURITY.md) to report security concerns privately.
 
-## License
-
-AnyFormat is released under the [MIT License](LICENSE).
+AnyFormat is released under the [MIT license](LICENSE).
