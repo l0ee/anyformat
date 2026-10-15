@@ -22,19 +22,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const idPrefix = useId();
   const controlId = (name: string) => `${idPrefix}-${name}`;
-  const focusClasses = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900';
+  const focusClasses = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900';
 
   return (
-    <fieldset disabled={disabled} className={`app-panel text-stone-900 dark:text-white rounded-2xl p-6 space-y-5 font-['Plus_Jakarta_Sans',sans-serif] ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
+    <fieldset disabled={disabled} className={`app-panel studio-controls text-stone-900 dark:text-white rounded-2xl p-6 space-y-5 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Mode Switcher */}
-      <div className="flex items-center justify-between border-b border-stone-200/80 dark:border-slate-800 pb-4">
-        <span className="text-sm font-semibold uppercase tracking-wider text-stone-700 dark:text-slate-300">TRACING MODE</span>
-        <div role="group" aria-label="Tracing mode" className="bg-[#eee4d7]/85 dark:bg-slate-950 p-1 rounded-lg flex space-x-1 border border-stone-300/70 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200/80 dark:border-slate-800 pb-4">
+        <span className="text-sm font-bold text-stone-700 dark:text-slate-300">Tracing mode</span>
+        <div role="group" aria-label="Tracing mode" className="studio-mode-options p-1 rounded-lg flex gap-1 border">
           <button
             type="button"
             onClick={() => setMode('monochrome')}
             aria-pressed={mode === 'monochrome'}
-            className={`min-h-10 px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-md transition-all motion-reduce:transition-none ${focusClasses} ${
+            className={`min-h-11 px-3 py-1 text-xs font-semibold rounded-md transition-colors motion-reduce:transition-none ${focusClasses} ${
               mode === 'monochrome'
                 ? 'bg-rose-500/20 border border-rose-500/60 text-rose-700 dark:text-pink-300 font-bold'
                 : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
@@ -46,7 +46,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             type="button"
             onClick={() => setMode('color')}
             aria-pressed={mode === 'color'}
-            className={`min-h-10 px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-md transition-all motion-reduce:transition-none ${focusClasses} ${
+            className={`min-h-11 px-3 py-1 text-xs font-semibold rounded-md transition-colors motion-reduce:transition-none ${focusClasses} ${
               mode === 'color'
                 ? 'bg-rose-500/20 border border-rose-500/60 text-rose-700 dark:text-pink-300 font-bold'
                 : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
@@ -58,7 +58,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       <div className="text-xs font-semibold uppercase tracking-widest text-stone-500 dark:text-slate-400 pt-1">
-        VECTOR PARAMETERS
+        Adjust your result
       </div>
 
       {/* Mode Specific Controls */}
@@ -83,7 +83,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('mono-despeckle')}>Despeckle (Speckle Suppression)</label>
+              <label htmlFor={controlId('mono-despeckle')}>Remove small specks</label>
               <output id={controlId('mono-despeckle-value')} htmlFor={controlId('mono-despeckle')} className="font-mono text-pink-600 dark:text-pink-400">{monoOpts.turdSize ?? 2} px</output>
             </div>
             <input
@@ -98,9 +98,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           </div>
 
-          <div>
+          <details className="workspace-advanced">
+            <summary>Advanced settings</summary>
+          <div className="mt-4">
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('mono-alpha')}>Corner Threshold (Alpha Max)</label>
+              <label htmlFor={controlId('mono-alpha')}>Corner smoothing</label>
               <output id={controlId('mono-alpha-value')} htmlFor={controlId('mono-alpha')} className="font-mono text-pink-600 dark:text-pink-400">{monoOpts.alphaMax ?? 1.0}</output>
             </div>
             <input
@@ -118,7 +120,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('mono-tolerance')}>Curve Optimization Tolerance</label>
+              <label htmlFor={controlId('mono-tolerance')}>Curve simplification</label>
               <output id={controlId('mono-tolerance-value')} htmlFor={controlId('mono-tolerance')} className="font-mono text-pink-600 dark:text-pink-400">{monoOpts.optTolerance ?? 0.2}</output>
             </div>
             <input
@@ -174,6 +176,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </label>
             </div>
           </div>
+          </details>
         </div>
       ) : (
         <div className="space-y-4">
@@ -196,7 +199,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('color-despeckle')}>Speckle Suppression (Turd Size)</label>
+              <label htmlFor={controlId('color-despeckle')}>Remove small specks</label>
               <output id={controlId('color-despeckle-value')} htmlFor={controlId('color-despeckle')} className="font-mono text-pink-600 dark:text-pink-400">{colorOpts.turdSize ?? 2} px</output>
             </div>
             <input
@@ -211,9 +214,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           </div>
 
-          <div>
+          <details className="workspace-advanced">
+            <summary>Advanced settings</summary>
+          <div className="mt-4">
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('color-alpha')}>Corner Alpha Max</label>
+              <label htmlFor={controlId('color-alpha')}>Corner smoothing</label>
               <output id={controlId('color-alpha-value')} htmlFor={controlId('color-alpha')} className="font-mono text-pink-600 dark:text-pink-400">{colorOpts.alphaMax ?? 1.0}</output>
             </div>
             <input
@@ -231,7 +236,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
           <div>
             <div className="flex justify-between text-xs font-medium text-stone-700 dark:text-slate-300 mb-1">
-              <label htmlFor={controlId('color-tolerance')}>Curve Optimization Tolerance</label>
+              <label htmlFor={controlId('color-tolerance')}>Curve simplification</label>
               <output id={controlId('color-tolerance-value')} htmlFor={controlId('color-tolerance')} className="font-mono text-pink-600 dark:text-pink-400">{colorOpts.optTolerance ?? 0.2}</output>
             </div>
             <input
@@ -265,6 +270,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           </div>
 
+          </details>
         </div>
       )}
     </fieldset>

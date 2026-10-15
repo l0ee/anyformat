@@ -1,5 +1,21 @@
 import { UniversalTaskItem } from '../engine/universal/types';
 
+/** Clear all output state while retaining source previews and PDF metadata. */
+export function resetUniversalResult(item: UniversalTaskItem): UniversalTaskItem {
+  return {
+    ...item,
+    status: 'idle',
+    progress: 0,
+    stage: undefined,
+    resultBlob: undefined,
+    resultUrl: undefined,
+    resultFilename: undefined,
+    resultSize: undefined,
+    imageOutput: undefined,
+    error: undefined,
+  };
+}
+
 export interface UniversalBatchMetrics {
   totalSourceBytes: number;
   totalResultBytes: number;
@@ -8,20 +24,11 @@ export interface UniversalBatchMetrics {
 }
 
 export function calculateUniversalBatchMetrics(items: UniversalTaskItem[]): UniversalBatchMetrics {
-  const completed = items.filter((item) => item.status === 'completed');
-  if (completed.length === 0) {
-    return {
-      totalSourceBytes: 0,
-      totalResultBytes: 0,
-      netByteDifference: 0,
-      percentageReduction: 0,
-    };
-  }
-
   let totalSourceBytes = 0;
   let totalResultBytes = 0;
 
-  for (const item of completed) {
+  for (const item of items) {
+    if (item.status !== 'completed') continue;
     const sourceSize = item.file?.size ?? 0;
     const resultSize = item.resultSize ?? item.resultBlob?.size ?? 0;
     totalSourceBytes += sourceSize;

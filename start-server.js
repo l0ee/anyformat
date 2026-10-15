@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
+import { SERVER_CSP } from './config/security-policy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,24 +36,108 @@ const MIME_TYPES = {
 };
 
 const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.cjs', '.css', '.json', '.map', '.txt', '.xml', '.svg']);
+const MAX_COMPRESSION_BYTES = 8 * 1024 * 1024;
+const MAX_COMPRESSION_JOBS = 4;
+const standaloneCompressionBudget = { active: 0 };
+
+function reserveCompression(budget) {
+  if (budget.active >= MAX_COMPRESSION_JOBS) return null;
+  budget.active++;
+  let released = false;
+  return () => {
+    if (!released) {
+      released = true;
+      budget.active--;
+    }
+  };
+}
+
+function responseClosed(res) {
+  return res.destroyed || res.writableEnded;
+}
+
+function compressBuffer(res, content, encoding, release, callback) {
+  const tracksResponse = typeof res.once === 'function' && typeof res.off === 'function';
+  let compressionDone = false;
+  let responseDone = res.destroyed || res.writableFinished;
+  const releaseIfDone = () => {
+    if (!compressionDone || !responseDone) return;
+    if (tracksResponse) {
+      res.off('finish', onResponseDone);
+      res.off('close', onResponseDone);
+    }
+    release();
+  };
+  const onResponseDone = () => {
+    responseDone = true;
+    releaseIfDone();
+  };
+  if (tracksResponse && !responseDone) {
+    res.once('finish', onResponseDone);
+    res.once('close', onResponseDone);
+  }
+  // end() can leave a buffered body pending. Conversely, a closed response can
+  // still have zlib running. Both lifetimes must end before reusing the slot.
+  const finish = (error, compressed) => {
+    if (compressionDone) return;
+    compressionDone = true;
+    try {
+      if (!responseClosed(res)) callback(error, compressed);
+    } catch {
+      if (typeof res.destroy === 'function') res.destroy();
+      else responseDone = true;
+    } finally {
+      // Plain response doubles have no asynchronous flush lifecycle to track.
+      if (!tracksResponse) responseDone = true;
+      releaseIfDone();
+    }
+  };
+  try {
+    const compress = encoding === 'br' ? zlib.brotliCompress : zlib.gzip;
+    compress(content, finish);
+  } catch (error) {
+    finish(error);
+  }
+}
+
+function pipeFile(res, filePath, options) {
+  const stream = fs.createReadStream(filePath, options);
+  const cancel = () => stream.destroy();
+  res.once('close', cancel);
+  stream.once('close', () => res.off('close', cancel));
+  stream.on('error', () => res.destroy());
+  stream.pipe(res);
+}
+
+function resolveContainedPath(distRoot, filePath, callback) {
+  fs.realpath(filePath, (error, canonicalPath) => {
+    if (error) {
+      const parent = path.dirname(filePath);
+      // A missing file inside an escaping directory must not become a SPA route.
+      if (error.code === 'ENOENT' && parent !== filePath) {
+        return resolveContainedPath(distRoot, parent, (parentError) => callback(parentError || error));
+      }
+      return callback(error);
+    }
+    if (canonicalPath !== distRoot && !canonicalPath.startsWith(`${distRoot}${path.sep}`)) {
+      return callback(Object.assign(new Error('Outside deployment root'), { code: 'EOUTSIDE' }));
+    }
+    callback(null, canonicalPath);
+  });
+}
+
+function resolveCanonicalFile(distRoot, filePath, callback) {
+  resolveContainedPath(distRoot, filePath, (error, canonicalPath) => {
+    if (error) return callback(error);
+    // Serve the checked path, not the original symlink. Deployments must not be
+    // concurrently mutated by untrusted users (realpath/open is not atomic).
+    fs.stat(canonicalPath, (statError, stats) => callback(statError, canonicalPath, stats));
+  });
+}
 
 function securityHeaders() {
   return {
-    'Content-Security-Policy': [
-      "default-src 'self'",
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob:",
-      "media-src 'self' blob:",
-      "worker-src 'self' blob:",
-      "child-src 'self' blob:",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-    ].join('; '),
+    'Content-Security-Policy': SERVER_CSP,
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Content-Type-Options': 'nosniff',
@@ -143,6 +228,7 @@ export function selectEncoding(acceptEncodingHeader) {
 }
 
 export function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHeaders = {}) {
+  if (responseClosed(res)) return;
   const extension = path.extname(filePath).toLowerCase();
   const headers = {
     ...securityHeaders(),
@@ -188,32 +274,15 @@ export function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHe
   if (buffer.length > 1024 && COMPRESSIBLE_EXTENSIONS.has(extension)) {
     headers.Vary = 'Accept-Encoding';
     const encoding = selectEncoding(acceptEncoding);
-    if (encoding === 'br') {
-      zlib.brotliCompress(buffer, (err, compressed) => {
-        if (err) {
-          headers['Content-Length'] = buffer.length;
-          res.writeHead(statusCode, headers);
-          res.end(req.method === 'HEAD' ? undefined : buffer);
-        } else {
-          headers['Content-Encoding'] = 'br';
-          headers['Content-Length'] = compressed.length;
-          res.writeHead(statusCode, headers);
-          res.end(req.method === 'HEAD' ? undefined : compressed);
-        }
-      });
-      return;
-    } else if (encoding === 'gzip') {
-      zlib.gzip(buffer, (err, compressed) => {
-        if (err) {
-          headers['Content-Length'] = buffer.length;
-          res.writeHead(statusCode, headers);
-          res.end(req.method === 'HEAD' ? undefined : buffer);
-        } else {
-          headers['Content-Encoding'] = 'gzip';
-          headers['Content-Length'] = compressed.length;
-          res.writeHead(statusCode, headers);
-          res.end(req.method === 'HEAD' ? undefined : compressed);
-        }
+    const release = encoding && req.method !== 'HEAD' && buffer.length <= MAX_COMPRESSION_BYTES
+      ? reserveCompression(standaloneCompressionBudget) : null;
+    if (release) {
+      compressBuffer(res, buffer, encoding, release, (err, compressed) => {
+        const output = err ? buffer : compressed;
+        if (!err) headers['Content-Encoding'] = encoding;
+        headers['Content-Length'] = output.length;
+        res.writeHead(statusCode, headers);
+        res.end(output);
       });
       return;
     }
@@ -224,112 +293,99 @@ export function sendBuffer(req, res, filePath, buffer, statusCode = 200, extraHe
   res.end(req.method === 'HEAD' ? undefined : buffer);
 }
 
-function serveFile(req, res, filePath, statusCode = 200, extraHeaders = {}) {
-  fs.stat(filePath, (statError, stats) => {
-    if (statError || !stats.isFile()) {
-      res.writeHead(404, securityHeaders());
-      res.end('Not Found');
+function serveFile(req, res, filePath, stats, compressionBudget, metadataPath = filePath) {
+  if (responseClosed(res)) return;
+  const extension = path.extname(metadataPath).toLowerCase();
+  const headers = {
+    ...securityHeaders(),
+    'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
+    'Cache-Control': cacheControl(metadataPath),
+    'Accept-Ranges': 'bytes',
+  };
+
+  const range = req.headers.range;
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (!match) {
+      res.writeHead(416, { ...headers, 'Content-Range': `bytes */${stats.size}` });
+      res.end();
       return;
     }
-
-    const extension = path.extname(filePath).toLowerCase();
-    const headers = {
-      ...securityHeaders(),
-      'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
-      'Cache-Control': cacheControl(filePath),
+    const requestedStart = match[1] ? Number(match[1]) : null;
+    const requestedEnd = match[2] ? Number(match[2]) : null;
+    const isSuffixRange = requestedStart === null;
+    const start = isSuffixRange
+      ? Math.max(0, stats.size - (requestedEnd ?? 0))
+      : requestedStart;
+    const end = isSuffixRange || requestedEnd === null ? stats.size - 1 : requestedEnd;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= stats.size) {
+      res.writeHead(416, { ...headers, 'Content-Range': `bytes */${stats.size}` });
+      res.end();
+      return;
+    }
+    const boundedEnd = Math.min(end, stats.size - 1);
+    const contentLength = boundedEnd - start + 1;
+    res.writeHead(206, {
+      ...headers,
       'Accept-Ranges': 'bytes',
-      ...extraHeaders,
-    };
-
-    const range = req.headers.range;
-    if (range) {
-      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
-      if (!match) {
-        res.writeHead(416, { ...headers, 'Content-Range': `bytes */${stats.size}` });
-        res.end();
-        return;
-      }
-      const requestedStart = match[1] ? Number(match[1]) : null;
-      const requestedEnd = match[2] ? Number(match[2]) : null;
-      const isSuffixRange = requestedStart === null;
-      const start = isSuffixRange
-        ? Math.max(0, stats.size - (requestedEnd ?? 0))
-        : requestedStart;
-      const end = isSuffixRange || requestedEnd === null ? stats.size - 1 : requestedEnd;
-      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= stats.size) {
-        res.writeHead(416, { ...headers, 'Content-Range': `bytes */${stats.size}` });
-        res.end();
-        return;
-      }
-      const boundedEnd = Math.min(end, stats.size - 1);
-      const contentLength = boundedEnd - start + 1;
-      res.writeHead(206, {
-        ...headers,
-        'Accept-Ranges': 'bytes',
-        'Content-Range': `bytes ${start}-${boundedEnd}/${stats.size}`,
-        'Content-Length': contentLength,
-      });
-      if (req.method === 'HEAD') {
-        res.end();
-        return;
-      }
-      const stream = fs.createReadStream(filePath, { start, end: boundedEnd });
-      stream.on('error', () => {
-        if (!res.headersSent) res.writeHead(500);
-        res.end();
-      });
-      stream.pipe(res);
-      return;
-    }
-
-    const acceptEncoding = req.headers['accept-encoding'] || '';
-    const shouldCompress = stats.size > 1024 && COMPRESSIBLE_EXTENSIONS.has(extension);
-    const encoding = shouldCompress ? selectEncoding(acceptEncoding) : null;
-
-    if (encoding) {
-      headers.Vary = 'Accept-Encoding';
-      fs.readFile(filePath, (readError, content) => {
-        if (readError) {
-          res.writeHead(500, securityHeaders());
-          res.end('Server Error');
-          return;
-        }
-        const compressFn = encoding === 'br' ? zlib.brotliCompress : zlib.gzip;
-        compressFn(content, (compError, compressed) => {
-          if (compError) {
-            headers['Content-Length'] = content.length;
-            res.writeHead(statusCode, headers);
-            res.end(req.method === 'HEAD' ? undefined : content);
-          } else {
-            headers['Content-Encoding'] = encoding;
-            headers['Content-Length'] = compressed.length;
-            res.writeHead(statusCode, headers);
-            res.end(req.method === 'HEAD' ? undefined : compressed);
-          }
-        });
-      });
-      return;
-    }
-
-    if (COMPRESSIBLE_EXTENSIONS.has(extension)) {
-      headers.Vary = 'Accept-Encoding';
-    }
-    headers['Content-Length'] = stats.size;
-    res.writeHead(statusCode, headers);
+      'Content-Range': `bytes ${start}-${boundedEnd}/${stats.size}`,
+      'Content-Length': contentLength,
+    });
     if (req.method === 'HEAD') {
       res.end();
       return;
     }
-    const stream = fs.createReadStream(filePath);
-    stream.on('error', () => {
-      if (!res.headersSent) res.writeHead(500);
-      res.end();
+    pipeFile(res, filePath, { start, end: boundedEnd });
+    return;
+  }
+
+  const acceptEncoding = req.headers['accept-encoding'] || '';
+  const shouldCompress = stats.size > 1024 && COMPRESSIBLE_EXTENSIONS.has(extension);
+  const encoding = shouldCompress ? selectEncoding(acceptEncoding) : null;
+
+  if (COMPRESSIBLE_EXTENSIONS.has(extension)) headers.Vary = 'Accept-Encoding';
+  const release = encoding && req.method !== 'HEAD' && stats.size <= MAX_COMPRESSION_BYTES
+    ? reserveCompression(compressionBudget) : null;
+  if (release) {
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    res.once('close', cancel);
+    fs.readFile(filePath, { signal: controller.signal }, (readError, content) => {
+      res.off('close', cancel);
+      if (readError) {
+        release();
+        if (!responseClosed(res)) {
+          res.writeHead(500, securityHeaders());
+          res.end('Server Error');
+        }
+        return;
+      }
+      if (responseClosed(res)) {
+        release();
+        return;
+      }
+      compressBuffer(res, content, encoding, release, (compError, compressed) => {
+        const output = compError ? content : compressed;
+        if (!compError) headers['Content-Encoding'] = encoding;
+        headers['Content-Length'] = output.length;
+        res.writeHead(200, headers);
+        res.end(output);
+      });
     });
-    stream.pipe(res);
-  });
+    return;
+  }
+
+  headers['Content-Length'] = stats.size;
+  res.writeHead(200, headers);
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  pipeFile(res, filePath);
 }
 
 export function createProductionServer({ distDir = path.join(__dirname, 'dist') } = {}) {
+  const compressionBudget = { active: 0 };
   return http.createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { ...securityHeaders(), Allow: 'GET, HEAD' });
@@ -344,29 +400,47 @@ export function createProductionServer({ distDir = path.join(__dirname, 'dist') 
       return;
     }
 
-    fs.stat(resolved.filePath, (error, stats) => {
-      if (!error && stats.isFile()) {
-        serveFile(req, res, resolved.filePath);
+    fs.realpath(distDir, (rootError, distRoot) => {
+      if (rootError) {
+        if (!responseClosed(res)) {
+          res.writeHead(500, securityHeaders());
+          res.end('Unable to load the application');
+        }
         return;
       }
+      resolveCanonicalFile(distRoot, resolved.filePath, (error, canonicalPath, stats) => {
+        if (responseClosed(res)) return;
+        if (!error && stats.isFile()) {
+          serveFile(req, res, canonicalPath, stats, compressionBudget, resolved.filePath);
+          return;
+        }
 
-      const isNotFound = !error || error.code === 'ENOENT' || error.code === 'EISDIR' || !stats.isFile();
-      const isClientRoute = isNotFound && !path.extname(resolved.pathname);
-      if (isClientRoute) {
-        const indexPath = path.join(distDir, 'index.html');
-        fs.stat(indexPath, (indexStatError, indexStats) => {
-          if (indexStatError || !indexStats.isFile()) {
-            res.writeHead(500, securityHeaders());
-            res.end('Unable to load the application');
-          } else {
-            serveFile(req, res, indexPath);
-          }
-        });
-        return;
-      }
+        if (error && error.code !== 'ENOENT' && error.code !== 'EISDIR') {
+          const statusCode = error.code === 'ENOTDIR' || error.code === 'EOUTSIDE' ? 404 : error.code === 'ENAMETOOLONG' ? 400 : 500;
+          res.writeHead(statusCode, securityHeaders());
+          res.end(statusCode === 404 ? 'Not Found' : statusCode === 400 ? 'Bad Request' : 'Server Error');
+          return;
+        }
 
-      res.writeHead(isNotFound ? 404 : 500, securityHeaders());
-      res.end(isNotFound ? 'Not Found' : 'Server Error');
+        const isClientRoute = !path.extname(resolved.pathname);
+        if (isClientRoute) {
+          const indexPath = path.join(distDir, 'index.html');
+          resolveCanonicalFile(distRoot, indexPath, (indexStatError, canonicalIndex, indexStats) => {
+            if (responseClosed(res)) return;
+            if (indexStatError || !indexStats.isFile()) {
+              const statusCode = indexStatError?.code === 'EOUTSIDE' ? 404 : 500;
+              res.writeHead(statusCode, securityHeaders());
+              res.end(statusCode === 404 ? 'Not Found' : 'Unable to load the application');
+            } else {
+              serveFile(req, res, canonicalIndex, indexStats, compressionBudget, indexPath);
+            }
+          });
+          return;
+        }
+
+        res.writeHead(404, securityHeaders());
+        res.end('Not Found');
+      });
     });
   });
 }

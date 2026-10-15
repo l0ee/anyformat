@@ -12,6 +12,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
 }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const containerRef = useRef<HTMLElement>(null);
   const sliderId = useId();
 
@@ -34,6 +35,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
   }, []);
 
   const handleMove = useCallback((clientX: number) => {
+    setHasInteracted(true);
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
@@ -74,6 +76,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
 
   return (
     <figure
+      aria-describedby={!hasInteracted ? `${sliderId}-hint` : undefined}
       aria-label="Original and vector image comparison"
       ref={containerRef}
       onPointerDown={handlePointerDown}
@@ -89,7 +92,7 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
           toggleFullscreen();
         }}
         onPointerDown={(e) => e.stopPropagation()}
-        className="absolute bottom-16 right-4 sm:bottom-20 bg-black/50 hover:bg-black/70 text-white rounded-lg p-2.5 backdrop-blur z-40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
+        className="absolute bottom-16 right-4 sm:bottom-20 bg-black/50 hover:bg-black/70 text-white rounded-lg p-2.5 backdrop-blur z-40 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-500"
         aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       >
         {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
@@ -136,18 +139,22 @@ export const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
         max="100"
         step="1"
         value={roundedPosition}
-        onChange={(event) => setSliderPosition(Number(event.target.value))}
+        onChange={(event) => {
+          setHasInteracted(true);
+          setSliderPosition(Number(event.target.value));
+        }}
         onPointerDown={(event) => event.stopPropagation()}
         aria-valuetext={`${roundedPosition}% original, ${100 - roundedPosition}% vector`}
-        className="absolute z-30 bottom-4 left-4 right-4 w-[calc(100%-2rem)] h-8 accent-pink-500 cursor-ew-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950 rounded-full"
+        className="absolute z-30 bottom-4 left-4 right-4 w-[calc(100%-2rem)] h-8 accent-pink-500 cursor-ew-resize focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950 rounded-full"
       />
 
       {/* Slider Line */}
+      {!hasInteracted && <span id={`${sliderId}-hint`} className="comparison-hint">Drag the divider or use the slider to compare</span>}
       <div
         className="absolute top-0 bottom-0 w-0.5 bg-neutral-300 cursor-ew-resize z-10 transition-[left] duration-75 motion-reduce:transition-none"
         style={{ left: `${sliderPosition}%` }}
       >
-        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[#faf5ef] shadow-xl flex items-center justify-center text-stone-800 border border-stone-300">
+        <div className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[#faf5ef] shadow-xl flex items-center justify-center text-stone-800 border border-stone-300 ${!hasInteracted ? 'comparison-handle-hint' : ''}`}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8M8 12h8M8 17h8" />
           </svg>

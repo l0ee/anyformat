@@ -11,6 +11,12 @@ const validSvg = Buffer.from(
 );
 
 test('previews PDF results accessibly with open and download fallbacks', async ({ page }) => {
+  const blockedFrames: string[] = [];
+  page.on('console', (message) => {
+    if (/framing|frame-src/i.test(message.text()) && /content security policy/i.test(message.text())) {
+      blockedFrames.push(message.text());
+    }
+  });
   await page.addInitScript(() => {
     window.__createdObjectUrls = [];
     const createObjectURL = URL.createObjectURL.bind(URL);
@@ -25,7 +31,7 @@ test('previews PDF results accessibly with open and download fallbacks', async (
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Format Converter' }).click();
+  await page.getByRole('button', { name: 'Convert files', exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'report.svg',
     mimeType: 'image/svg+xml',
@@ -59,4 +65,9 @@ test('previews PDF results accessibly with open and download fallbacks', async (
 
   const objectUrlCountAfterPreview = await page.evaluate(() => window.__createdObjectUrls.length);
   expect(objectUrlCountAfterPreview).toBe(objectUrlCountBeforePreview);
+  // A visible iframe alone does not prove CSP allowed the PDF to load.
+  // Headless browsers differ in native PDF viewer support; check policy
+  // violations rather than assuming the viewer exposes a Playwright frame.
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(blockedFrames).toEqual([]);
 });

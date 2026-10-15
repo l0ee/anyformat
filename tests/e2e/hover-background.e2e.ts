@@ -1,24 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-test('renders hover background container without blocking main workflow elements', async ({ page }) => {
+test('keeps a stable workspace in light and dark themes without decorative animation', async ({ page }) => {
   await page.goto('/');
-
-  const hoverLayer = page.locator('.hover-glow-blob');
-  await expect(hoverLayer).toHaveCount(1);
-  await expect(hoverLayer).toHaveAttribute('aria-hidden', 'true');
-
-  const shellBackground = await page.locator('.app-shell').evaluate((element) =>
-    window.getComputedStyle(element).backgroundImage
-  );
-  expect(shellBackground).toContain('linear-gradient');
-
-  await page.mouse.move(100, 100);
-  await page.mouse.move(300, 300);
-
-  const heading = page.getByRole('heading', { level: 1 });
-  await expect(heading).toBeVisible();
-
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
-  await expect(page.locator('.hover-glow-blob')).toHaveCSS('display', 'none');
+  await expect(page.locator('[data-animation]')).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Toggle theme' }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByText('Choose files', { exact: true }).click();
+  await chooser;
 });

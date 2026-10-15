@@ -22,6 +22,7 @@ type ClientInternals = {
   pendingRequests: Map<string, unknown>;
   pendingQueue: string[];
   decodingRequests: Set<AbortController>;
+  dispatchNext: () => void;
   handleWorkerMessage: (item: WorkerItemStub, event: MessageEvent<TraceWorkerResult>) => void;
   handleWorkerError: (item: WorkerItemStub, event: ErrorEvent) => void;
   handleWorkerMessageError: (item: WorkerItemStub) => void;
@@ -116,6 +117,84 @@ describe('TraceWorkerClient', () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it.each([[1, 1], [2, 1], [4, 2], [32, 2], [undefined, 1]])(
+    'bounds the worker pool for %s hardware cores to %s workers',
+    (cores, expectedWorkers) => {
+      const workers: WorkerStub[] = [];
+      installReplacementWorkerMock(workers);
+      vi.stubGlobal('navigator', { hardwareConcurrency: cores });
+      const client = new TraceWorkerClient();
+
+      expect(workers).toHaveLength(expectedWorkers);
+      expect(client.concurrency).toBe(expectedWorkers);
+      client.terminate();
+      workers.forEach((worker) => expect(worker.terminate).toHaveBeenCalledOnce());
+    },
+  );
+
+  it('retains a working worker if creating the second worker fails', async () => {
+    const workers: WorkerStub[] = [];
+    const constructor = installReplacementWorkerMock(workers);
+    vi.stubGlobal('navigator', { hardwareConcurrency: 4 });
+    constructor.mockImplementationOnce(function FirstWorker() {
+      const worker = createWorker();
+      workers.push(worker);
+      return worker;
+    }).mockImplementationOnce(function UnavailableWorker() { throw new Error('No additional workers available'); });
+
+    const client = new TraceWorkerClient();
+    expect(client.concurrency).toBe(1);
+    const request = client.traceMonochrome(createImageData());
+    sendResult(workers[0], { id: firstTask(workers[0]).id, status: 'success', result: createResult() });
+    await expect(request).resolves.toBeDefined();
+    client.terminate();
+  });
+
+  it('fills all idle workers in one dispatch pass', async () => {
+    const client = new TraceWorkerClient();
+    const workers = configureWorkers(client, [createWorker(), createWorker()]);
+    const internals = client as unknown as ClientInternals;
+    internals.workers.forEach((item) => { item.busy = true; });
+    const requests = [client.traceMonochrome(createImageData()), client.traceColor(createImageData())];
+    expect(internals.pendingQueue).toHaveLength(2);
+
+    internals.workers.forEach((item) => { item.busy = false; });
+    internals.dispatchNext();
+
+    workers.forEach((worker) => {
+      expect(worker.postMessage).toHaveBeenCalledOnce();
+      sendResult(worker, { id: firstTask(worker).id, status: 'success', result: createResult() });
+    });
+    await expect(Promise.all(requests)).resolves.toHaveLength(2);
+    client.terminate();
+  });
+
+  it('isolates a timed-out worker when replacement fails and another worker is active', async () => {
+    vi.useFakeTimers();
+    const client = new TraceWorkerClient();
+    const workers = configureWorkers(client, [createWorker(), createWorker()]);
+    const timedOut = client.traceMonochrome(createImageData());
+    const rejection = expect(timedOut).rejects.toThrow(/timed out/i);
+    await vi.advanceTimersByTimeAsync(1000);
+    const surviving = client.traceColor(createImageData());
+    const queued = client.traceMonochrome(createImageData());
+    vi.stubGlobal('Worker', vi.fn(() => { throw new Error('Unavailable'); }));
+
+    await vi.advanceTimersByTimeAsync(9000);
+    await rejection;
+    expect(workers[0].terminate).toHaveBeenCalledOnce();
+    expect(workers[1].terminate).not.toHaveBeenCalled();
+    expect(workers[1].postMessage).toHaveBeenCalledOnce();
+
+    sendResult(workers[1], { id: firstTask(workers[1]).id, status: 'success', result: createResult() });
+    expect(workers[1].postMessage).toHaveBeenCalledTimes(2);
+    const lastTask = workers[1].postMessage.mock.calls[1][0] as TraceWorkerTask;
+    sendResult(workers[1], { id: lastTask.id, status: 'success', result: createResult() });
+    await expect(Promise.all([surviving, queued])).resolves.toHaveLength(2);
+    expect(vi.getTimerCount()).toBe(0);
+    client.terminate();
   });
 
   it('transfers a private ImageData clone and keeps caller data safe on post failure', async () => {
@@ -312,7 +391,7 @@ describe('TraceWorkerClient', () => {
     expect(controller).toBeDefined();
     expect(internals.pendingRequests.size).toBe(0);
     expect(createObjectURL).toHaveBeenCalledOnce();
-    expect(image.src).toBe('blob:pending-image');
+    await vi.waitFor(() => expect(image.src).toBe('blob:pending-image'));
     const removeAbortListener = vi.spyOn(controller.signal, 'removeEventListener');
     const rejection = expect(request).rejects.toThrow('Trace worker client was terminated.');
 
@@ -430,6 +509,40 @@ describe('TraceWorkerClient', () => {
     const internals = client as unknown as ClientInternals;
     expect(internals.pendingRequests.size).toBe(0);
     expect(internals.pendingQueue).toHaveLength(0);
+  });
+
+  it('settles queued work when an unexpected response cannot replace the worker', async () => {
+    const client = new TraceWorkerClient();
+    const worker = createWorker();
+    configureWorkers(client, [worker]);
+    vi.stubGlobal('Worker', vi.fn(() => { throw new Error('Unavailable'); }));
+
+    const active = client.traceMonochrome(createImageData());
+    const queued = client.traceColor(createImageData());
+    sendResult(worker, { id: 'stale', status: 'success', result: createResult() });
+
+    await expect(active).resolves.toBeDefined();
+    await expect(queued).resolves.toBeDefined();
+    expect((client as unknown as ClientInternals).pendingRequests.size).toBe(0);
+  });
+
+  it.each(['abort', 'terminate'])('cancels scheduled fallback on %s', async (action) => {
+    vi.useFakeTimers();
+    const client = new TraceWorkerClient();
+    const worker = createWorker();
+    configureWorkers(client, [worker]);
+    const controller = new AbortController();
+    const request = client.traceMonochrome(createImageData(), {}, controller.signal);
+    sendResult(worker, { id: firstTask(worker).id, status: 'error', error: 'failed' });
+    const rejection = expect(request).rejects.toThrow(action === 'abort' ? /abort/i : /terminated/i);
+
+    if (action === 'abort') controller.abort();
+    else client.terminate();
+
+    await rejection;
+    expect(vi.getTimerCount()).toBe(0);
+    expect((client as unknown as ClientInternals).pendingRequests.size).toBe(0);
+    client.terminate();
   });
 
   it('removes dead worker from pool and disables workers when replacement fails', async () => {

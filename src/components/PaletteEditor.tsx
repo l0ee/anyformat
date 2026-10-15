@@ -13,14 +13,14 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({ colors, onColorCha
 
   return (
     <section aria-labelledby={headingId} className="app-panel rounded-2xl text-stone-900 dark:text-white p-5 space-y-3 font-['Plus_Jakarta_Sans',sans-serif]">
-      <div className="flex items-center justify-between">
-        <h4 id={headingId} className="text-xs font-serif uppercase tracking-widest text-stone-500 dark:text-slate-400">
-          EXTRACTED COLOR PALETTE ({colors.length})
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 id={headingId} className="text-sm font-bold text-stone-700 dark:text-slate-200">
+          Color palette ({colors.length})
         </h4>
-        <span className="text-[10px] text-stone-500 dark:text-slate-400 uppercase tracking-wider">Choose a swatch to change its color</span>
+        <span className="text-xs text-stone-500 dark:text-slate-400">Choose a swatch to change its color</span>
       </div>
 
-      <ul className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+      <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {colors.map((col, idx) => (
           <li
             key={`${col.hex}-${idx}`}
@@ -38,14 +38,14 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({ colors, onColorCha
               />
               <span
                 aria-hidden="true"
-                className="block w-11 h-11 rounded-lg border border-stone-300 dark:border-slate-700 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950"
+                className="block w-11 h-11 rounded-lg border border-stone-300 dark:border-slate-700 peer-focus-visible:outline-hidden peer-focus-visible:ring-2 peer-focus-visible:ring-pink-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-950"
                 style={{ backgroundColor: col.hex }}
               />
             </label>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#fdfaf6] dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-stone-700 dark:text-slate-300">
+            <span className="text-xs font-mono font-semibold px-1.5 py-0.5 rounded bg-[#fdfaf6] dark:bg-slate-900 border border-stone-200 dark:border-slate-800 text-stone-700 dark:text-slate-300">
               {col.hex.toUpperCase()}
             </span>
-            <span className="text-[9px] text-stone-500 dark:text-slate-500 mt-1 font-mono">
+            <span className="text-xs text-stone-500 dark:text-slate-400 mt-1 font-mono">
               {col.percentage.toFixed(1)}%
             </span>
           </li>

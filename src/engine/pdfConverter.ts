@@ -1,8 +1,8 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocument } from 'pdf-lib';
 import { rasterizeSvgToBlob } from './svgRasterizer';
 import { traceWorkerClient } from '../workers/traceWorkerClient';
 import { optimizeSvg } from './svgOptimizer';
+import type { ConversionStage } from './universal/types';
+import { assertImageDecodeDimensions, assertRasterDecodeBudget } from '../utils/imageDecodeLimits';
 
 import {
   MAX_CANVAS_EDGE,
@@ -10,18 +10,25 @@ import {
   assertCanvasDimensionsWithinBudget,
 } from './canvasLimits';
 
-// Configure pdfjs worker for Vite environment
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url
-).toString();
+async function loadPdfRenderer() {
+  const pdfjsLib = await import('pdfjs-dist');
+  // Configure the worker only when a PDF is actually opened.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.mjs',
+    import.meta.url
+  ).toString();
+  return pdfjsLib;
+}
 
 /**
  * Returns the total page count for a given PDF file.
  */
 export async function getPdfPageCount(file: File): Promise<number> {
-  const arrayBuffer = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+  const [pdfjsLib, arrayBuffer] = await Promise.all([loadPdfRenderer(), file.arrayBuffer()]);
+  const loadingTask = pdfjsLib.getDocument({
+    data: arrayBuffer,
+    wasmUrl: new URL(`${import.meta.env.BASE_URL}pdfjs/wasm/`, window.location.href).href,
+  });
   try {
     const pdfDoc = await loadingTask.promise;
     const numPages = pdfDoc.numPages;
@@ -46,8 +53,13 @@ export async function convertPdfToImage(
   targetExt: string,
   pageNumber: number = 1
 ): Promise<Blob> {
-  const arrayBuffer = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+  const [pdfjsLib, arrayBuffer] = await Promise.all([loadPdfRenderer(), file.arrayBuffer()]);
+  const loadingTask = pdfjsLib.getDocument({
+    data: arrayBuffer,
+    wasmUrl: new URL(`${import.meta.env.BASE_URL}pdfjs/wasm/`, window.location.href).href,
+    // Native ImageDecoder can silently drop embedded JPEGs in WebKit.
+    isImageDecoderSupported: false,
+  });
   try {
     const pdfDoc = await loadingTask.promise;
 
@@ -133,8 +145,15 @@ export async function convertPdfToImage(
  * Converts a PDF page to SVG.
  * First renders PDF page to image canvas, then uses tracer worker to convert to SVG.
  */
-export async function convertPdfToSvg(file: File, pageNumber: number = 1): Promise<Blob> {
+export async function convertPdfToSvg(
+  file: File,
+  pageNumber: number = 1,
+  options?: { signal?: AbortSignal; onStage?: (stage: ConversionStage) => void }
+): Promise<Blob> {
+  options?.signal?.throwIfAborted();
   const imageBlob = await convertPdfToImage(file, 'png', pageNumber);
+  options?.signal?.throwIfAborted();
+  options?.onStage?.('Tracing shapes…');
   const imageFile = new File([imageBlob], 'temp_pdf_page.png', { type: 'image/png' });
 
   const traceResult = await traceWorkerClient.traceColor(imageFile, {
@@ -144,7 +163,9 @@ export async function convertPdfToSvg(file: File, pageNumber: number = 1): Promi
     alphaMax: 1.0,
     blurRadius: 0,
     maxResolution: 1024,
-  });
+  }, options?.signal);
+  options?.signal?.throwIfAborted();
+  options?.onStage?.('Preparing download…');
 
   const optResult = optimizeSvg(traceResult.svg, {
     precision: 2,
@@ -156,10 +177,46 @@ export async function convertPdfToSvg(file: File, pageNumber: number = 1): Promi
   return new Blob([optResult.svg], { type: 'image/svg+xml' });
 }
 
+function assertPngSafeToDecode(buffer: ArrayBuffer): void {
+  const view = new DataView(buffer);
+  const invalidPng = () => new Error('Invalid PNG structure for PDF embedding.');
+  if (
+    view.byteLength < 33 ||
+    view.getUint32(0) !== 0x89504e47 ||
+    view.getUint32(4) !== 0x0d0a1a0a ||
+    view.getUint32(8) !== 13 ||
+    view.getUint32(12) !== 0x49484452 // IHDR must be the first chunk.
+  ) {
+    throw invalidPng();
+  }
+
+  assertCanvasDimensionsWithinBudget(view.getUint32(16), view.getUint32(20), 'Image for PDF');
+
+  // A later IHDR or animation frame must not override the checked dimensions.
+  let offset = 33;
+  while (offset < view.byteLength) {
+    if (view.byteLength - offset < 12) throw invalidPng();
+    const length = view.getUint32(offset);
+    const type = view.getUint32(offset + 4);
+    if (length > view.byteLength - offset - 12 || type === 0x49484452) throw invalidPng();
+    if (type === 0x6163544c || type === 0x6663544c || type === 0x66644154) {
+      throw new Error('Animated PNGs are not supported for PDF embedding.');
+    }
+    offset += length + 12;
+    if (type === 0x49454e44) { // IEND
+      if (length !== 0 || offset !== view.byteLength) throw invalidPng();
+      return;
+    }
+  }
+  throw invalidPng();
+}
+
 /**
  * Converts an Image (File or Blob) to PDF using pdf-lib.
  */
 export async function convertImageToPdf(file: File | Blob): Promise<Blob> {
+  await assertRasterDecodeBudget(file);
+  const { PDFDocument } = await import('pdf-lib');
   const pdfDoc = await PDFDocument.create();
   if (typeof pdfDoc.setTitle === 'function') {
     pdfDoc.setTitle('Converted with AnyFormat');
@@ -181,8 +238,10 @@ export async function convertImageToPdf(file: File | Blob): Promise<Blob> {
     if (file.type !== 'image/png') {
       const pngBlob = await convertBlobToPng(file);
       const pngBuffer = await pngBlob.arrayBuffer();
+      assertPngSafeToDecode(pngBuffer);
       image = await pdfDoc.embedPng(pngBuffer);
     } else {
+      assertPngSafeToDecode(arrayBuffer);
       image = await pdfDoc.embedPng(arrayBuffer);
     }
   }
@@ -212,6 +271,12 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
       URL.revokeObjectURL(url);
       const naturalWidth = img.naturalWidth || img.width;
       const naturalHeight = img.naturalHeight || img.height;
+      try {
+        assertImageDecodeDimensions(naturalWidth, naturalHeight);
+      } catch (error) {
+        reject(error);
+        return;
+      }
       if (!Number.isFinite(naturalWidth) || !Number.isFinite(naturalHeight) || naturalWidth < 1 || naturalHeight < 1) {
         reject(new Error('Image has invalid dimensions for PDF embedding'));
         return;

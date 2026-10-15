@@ -129,6 +129,40 @@ describe('useKeyboardShortcuts / handleKeyboardShortcut', () => {
       expect(handlers.onPrevTab).toHaveBeenCalledTimes(2);
     });
 
+    it.each([
+      ['input', { tagName: 'INPUT' }],
+      ['textarea', { tagName: 'TEXTAREA' }],
+      ['select', { tagName: 'SELECT' }],
+      ['contenteditable', { tagName: 'DIV', isContentEditable: true }],
+    ])('leaves workspace navigation shortcuts to the focused %s', (_name, target) => {
+      const handlers = createHandlers();
+      const preventDefault = vi.fn();
+
+      for (const shortcut of [
+        { key: 'ArrowRight', altKey: true },
+        { key: 'ArrowLeft', altKey: true },
+        { key: 'PageDown', ctrlKey: true },
+        { key: 'PageUp', ctrlKey: true },
+      ]) {
+        handleKeyboardShortcut({ ...shortcut, target, preventDefault }, handlers);
+      }
+
+      expect(handlers.onNextTab).not.toHaveBeenCalled();
+      expect(handlers.onPrevTab).not.toHaveBeenCalled();
+      expect(preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('keeps command and conversion shortcuts available while editing', () => {
+      const handlers = createHandlers();
+      const target = { tagName: 'INPUT' };
+
+      handleKeyboardShortcut({ key: 'k', ctrlKey: true, target }, handlers);
+      handleKeyboardShortcut({ key: 'Enter', ctrlKey: true, target }, handlers);
+
+      expect(handlers.onCommandK).toHaveBeenCalledTimes(1);
+      expect(handlers.onConvert).toHaveBeenCalledTimes(1);
+    });
+
     it('ignores single-key shortcuts when focus is inside an input or textarea', () => {
       const handlers = createHandlers();
 
