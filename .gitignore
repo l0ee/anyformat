@@ -27,14 +27,39 @@ dist/
 dist-ssr/
 *.local
 
+# Environment files (keep shareable examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
 # Local source artwork (not copied into builds or committed)
 design-assets/
+
+# Private local project notes
+/project-notes/
+
+# Local-only development scratch files (not part of the build or test suite)
+/docs/superpowers/
+/src/test/
+/test/
+/src/engine/testEngine.ts
+/src/utils/themeHelper.ts
+/src/components/HoverBackground.tsx
+/src/components/HoverBackground.test.tsx
+/src/components/VectorBackground.tsx
+/src/components/VectorBackground.test.tsx
+/src/components/common/Tooltip.tsx
+/public/background.mp4
+/postcss.config.js
+/Audit Prompt
 
 # Test reports and temporary artifacts
 .vitest/
 coverage/
 playwright-report/
 test-results/
+.playwright-mcp/
 
 # Editor directories and files
 .vscode/*
