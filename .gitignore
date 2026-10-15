@@ -37,6 +37,22 @@ dist-ssr/
 design-assets/
 local-experiments/
 
+# Local-only notes, scripts, and obsolete files
+/project-notes/
+/docs/superpowers/
+/src/test/
+/test/start-server.test.js
+/src/engine/testEngine.ts
+/src/utils/themeHelper.ts
+/src/components/HoverBackground.tsx
+/src/components/HoverBackground.test.tsx
+/src/components/VectorBackground.tsx
+/src/components/VectorBackground.test.tsx
+/src/components/common/Tooltip.tsx
+/public/background.mp4
+/postcss.config.js
+/Audit Prompt
+
 # Test reports and temporary artifacts
 .vitest/
 coverage/
